@@ -2,28 +2,28 @@ from typing import List, Dict, Any, Tuple
 from collections import defaultdict
 
 class CandidateFactMatcher:
-    """Retrieves high-probability candidate fact pairs for cross-document reconciliation."""
 
     @classmethod
     def get_candidate_pairs(cls, facts: List[Dict[str, Any]]) -> List[Tuple[Dict[str, Any], Dict[str, Any]]]:
-        """Group facts by predicate / metric category and return valid cross-document candidate pairs."""
-
         candidate_pairs: List[Tuple[Dict[str, Any], Dict[str, Any]]] = []
         seen_pair_keys = set()
-
         predicate_buckets = defaultdict(list)
 
         for fact in facts:
             pred = fact.get("predicate", "")
             ftype = fact.get("fact_type", "NUMERICAL")
             rval = fact.get("raw_value", "")
-            fid = fact.get("id", fact.get("fact_id", ""))
             if not pred and not rval:
-                continue  # Skip facts with no predicate and no value
+                continue
             pred_key = cls._get_predicate_key(pred, ftype, rval)
             predicate_buckets[pred_key].append(fact)
 
         for pred_key, bucket_facts in predicate_buckets.items():
+            # Prevent catastrophic O(N^2) memory explosion for massive generic buckets
+            # Caps candidate pair generation to a safe limit when analyzing >7 PDFs
+            if len(bucket_facts) > 150:
+                bucket_facts = bucket_facts[:150]
+                
             for i in range(len(bucket_facts)):
                 for j in range(i + 1, len(bucket_facts)):
                     fact_a = bucket_facts[i]
@@ -35,7 +35,6 @@ class CandidateFactMatcher:
                     if fid_a and fid_b and fid_a == fid_b:
                         continue
 
-                    # Must come from different documents
                     if fact_a.get("document_id") == fact_b.get("document_id"):
                         continue
 
@@ -50,17 +49,13 @@ class CandidateFactMatcher:
 
     @classmethod
     def find_candidate_pairs(cls, facts: List[Dict[str, Any]]) -> List[Tuple[Dict[str, Any], Dict[str, Any]]]:
-        """Alias for get_candidate_pairs for compatibility."""
         return cls.get_candidate_pairs(facts)
-
 
     @classmethod
     def _get_predicate_key(cls, predicate: str, fact_type: str, raw_value: str) -> str:
-        """Normalize predicate string into a metric category bucket key."""
         import re
         p_clean = predicate.lower().strip()
-        r_clean = raw_value.lower().strip()
-        
+
         if "margin" in p_clean:
             return "METRIC_OPERATING_MARGIN"
         elif "revenue" in p_clean or "sales" in p_clean or "turnover" in p_clean or "cloud" in p_clean:
@@ -86,4 +81,3 @@ class CandidateFactMatcher:
             if words:
                 return f"METRIC_{words[0].upper()}"
             return f"GENERIC_{fact_type}"
-

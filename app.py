@@ -19,7 +19,6 @@ from backend.app.pipeline.normalizer import FactNormalizer
 from backend.app.pipeline.entity_resolution import EntityResolutionEngine
 from backend.app.pipeline.candidate_matcher import CandidateFactMatcher
 from backend.app.pipeline.relationship_engine import RelationshipEngine
-from sample_data import SAMPLE_FACTS, SAMPLE_RELATIONSHIPS
 
 st.set_page_config(
     page_title="Fact Knowledge Layer | Document Intelligence",
@@ -214,11 +213,11 @@ st.markdown(
     unsafe_allow_html=True,
 )
 
-# Auto-initialize with benchmark evaluation data so outputs are immediately visible on load
-if "facts" not in st.session_state or not st.session_state.facts:
-    st.session_state.facts = list(SAMPLE_FACTS)
-    st.session_state.relationships = list(SAMPLE_RELATIONSHIPS)
-    st.session_state.dataset_label = "Demo Benchmark Dataset (7 Disclosures)"
+# Initialize with empty workspace so the dashboard starts clean
+if "facts" not in st.session_state:
+    st.session_state.facts = []
+    st.session_state.relationships = []
+    st.session_state.dataset_label = "Empty Workspace"
 
 
 def run_local_pipeline(uploaded_files, progress_bar=None, status_container=None):
@@ -310,12 +309,6 @@ with st.sidebar:
     )
 
     run_analysis = st.button("🚀 Analyze Uploaded PDFs", type="primary", use_container_width=True)
-
-    if st.button("⚡ Reset to Benchmark Demo Data", use_container_width=True):
-        st.session_state.facts = list(SAMPLE_FACTS)
-        st.session_state.relationships = list(SAMPLE_RELATIONSHIPS)
-        st.session_state.dataset_label = "Demo Benchmark Dataset (7 Disclosures)"
-        st.rerun()
 
     st.markdown("---")
     st.markdown(
@@ -437,12 +430,19 @@ tab_corr, tab_contra, tab_recon, tab_audit, tab_facts = st.tabs([
 ])
 
 
-def render_relationship_cards(items, card_type="corr"):
+def render_relationship_cards(items, card_type="corr", max_display=50):
     if not items:
         st.info("No relationships found in this category.")
         return
 
-    for item in items:
+    if len(items) > max_display:
+        st.warning(f"⚠️ Displaying top {max_display} of {len(items)} relationships to ensure UI stability.")
+        items_to_render = items[:max_display]
+    else:
+        items_to_render = items
+
+    all_cards_html = []
+    for item in items_to_render:
         rel_id = html.escape(str(item.get("relationship_id") or item.get("id", "R-001")))
         category = html.escape(str(item.get("category", "Analysis")))
         reasoning = html.escape(str(item.get("reasoning", "")))
@@ -472,7 +472,7 @@ def render_relationship_cards(items, card_type="corr"):
         claims_joined = "".join(claims_html)
         diagnostic_markup = f'<div class="diagnostic-fix"><strong>⚠️ Diagnostic Fix Action:</strong> {diagnostic}</div>' if diagnostic else ""
 
-        card_html = f"""
+        all_cards_html.append(f"""
         <div class="rel-card rel-card-{card_type}">
             <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom:0.75rem;">
                 <div>
@@ -489,8 +489,9 @@ def render_relationship_cards(items, card_type="corr"):
             </div>
             {diagnostic_markup}
         </div>
-        """
-        st.markdown(card_html, unsafe_allow_html=True)
+        """)
+        
+    st.markdown("".join(all_cards_html), unsafe_allow_html=True)
 
 
 with tab_corr:
@@ -511,7 +512,15 @@ with tab_audit:
 
 with tab_facts:
     st.caption("Discrete, atomic extracted facts normalized into structured key-value entities.")
-    for f in facts:
+    max_facts = 50
+    if len(facts) > max_facts:
+        st.warning(f"⚠️ Displaying first {max_facts} of {len(facts)} facts to ensure UI stability.")
+        facts_to_render = facts[:max_facts]
+    else:
+        facts_to_render = facts
+        
+    all_facts_html = []
+    for f in facts_to_render:
         fid = html.escape(str(f.get("fact_id") or f.get("id", "F-001")))
         subj = html.escape(str(f.get("subject", f.get("entity", "Corporate Entity"))))
         metric = html.escape(str(f.get("raw_value") or f.get("metric_or_value", "")))
@@ -522,7 +531,7 @@ with tab_facts:
         temp_badge = f'<span class="badge-pill" style="margin-left:6px;">{temp}</span>' if temp else ''
         quote_markup = f'"{quote}"' if quote else ""
 
-        st.markdown(
+        all_facts_html.append(
             f"""
             <div class="fact-card">
                 <div style="display:flex; justify-content:space-between; align-items:center;">
@@ -543,9 +552,10 @@ with tab_facts:
                     <span class="doc-tag">📄 {src}</span>
                 </div>
             </div>
-            """,
-            unsafe_allow_html=True
+            """
         )
+        
+    st.markdown("".join(all_facts_html), unsafe_allow_html=True)
 
 # Raw JSON Export Section
 st.markdown("---")

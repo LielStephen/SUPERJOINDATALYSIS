@@ -1,22 +1,25 @@
 import re
 import uuid
+import multiprocessing
 from typing import List, Dict, Any, Optional
 import spacy
 from backend.app.pipeline.pdf_parser import PDFPageData
 from backend.app.pipeline.normalizer import FactNormalizer
 
 try:
-    nlp = spacy.load("en_core_web_sm")
+    nlp = spacy.load("en_core_web_sm", disable=["lemmatizer", "textcat"])
 except Exception:
     try:
         import spacy.cli
         spacy.cli.download("en_core_web_sm")
-        nlp = spacy.load("en_core_web_sm")
+        nlp = spacy.load("en_core_web_sm", disable=["lemmatizer", "textcat"])
     except Exception:
         nlp = spacy.blank("en")
 
 
 class ExtractedFactItem:
+    __slots__ = ['id', 'subject', 'predicate', 'raw_value', 'fact_type', 'source_text', 'page_number', 'bounding_box', 'confidence']
+
     def __init__(
         self,
         subject: str,
@@ -39,118 +42,108 @@ class ExtractedFactItem:
         self.confidence = confidence
 
 class FactExtractionEngine:
-    """Hybrid local fact extraction engine using Document Structure, Patterns, and spaCy NLP."""
 
+    # PRE-COMPILE REGEX FOR MASSIVE SPEEDUP IN TIGHT LOOPS
     PATTERNS = [
-        # Operating Margin e.g. "GAAP Operating Margin for fiscal year 2023 contracted to 21.4%" / "Adjusted Non-GAAP Operating Margin for FY23 was 28.6%"
         {
             "category": "Operating Margin",
-            "regex": r'(?P<qualifier>GAAP|Non-GAAP|Adjusted Non-GAAP)?\s*Operating\s+Margin[A-Za-z0-9\s,]+?\s+(?P<value>[\d.]+%)',
+            "regex": re.compile(r'(?P<qualifier>GAAP|Non-GAAP|Adjusted Non-GAAP)?\s*Operating\s+Margin[A-Za-z0-9\s,]+?\s+(?P<value>[\d.]+%)', re.IGNORECASE),
             "predicate": "operating margin",
             "type": "PERCENTAGE"
         },
-        # Cloud revenue / segment revenue e.g. "Cloud Infrastructure segment revenue reached $4.2 billion" / "crossed $4.2B"
         {
             "category": "Revenue",
-            "regex": r'(?P<subject>[A-Za-z0-9\s]+?)\s+(?:segment\s+)?(?:revenue\s+)?(?:reached|was|grew\s+to|crossed|generated)\s+(?P<value>[$€£₹]?\s*[\d.]+\s*(?:billion|million|B|M|thousand|k)?)\b',
+            "regex": re.compile(r'(?P<subject>[A-Za-z0-9\s]+?)\s+(?:segment\s+)?(?:revenue\s+)?(?:reached|was|grew\s+to|crossed|generated)\s+(?P<value>[$€£₹]?\s*[\d.]+\s*(?:billion|million|B|M|thousand|k)?)\b', re.IGNORECASE),
             "predicate": "revenue",
             "type": "CURRENCY"
         },
-        # Cloud / segment YoY growth e.g. "representing 32% year-over-year expansion" / "growing by 32% compared to prior year"
         {
             "category": "Growth",
-            "regex": r'(?:representing|growing\s+by|expanded\s+by|expansion\s+of)\s+(?P<value>[\d.]+%)\s*(?P<qualifier>year-over-year|annual|YoY)?',
+            "regex": re.compile(r'(?:representing|growing\s+by|expanded\s+by|expansion\s+of)\s+(?P<value>[\d.]+%)\s*(?P<qualifier>year-over-year|annual|YoY)?', re.IGNORECASE),
             "predicate": "annual growth",
             "type": "PERCENTAGE"
         },
-        # Headcount / Workforce e.g. "headcount as of December 31, 2023 stood at 14,200 full-time employees" / "closed fiscal year 2023 with 15,800 active permanent employees"
         {
             "category": "Headcount",
-            "regex": r'(?:headcount|workforce|employees|company)\s+(?:[A-Za-z0-9,\s]+?\s+)?(?:stood\s+at|was|closed\s+(?:fiscal\s+year\s+\d+\s+)?with)\s+(?P<value>[\d,]+)\s+(?P<unit>full-time employees|active permanent employees|employees)',
+            "regex": re.compile(r'(?:headcount|workforce|employees|company)\s+(?:[A-Za-z0-9,\s]+?\s+)?(?:stood\s+at|was|closed\s+(?:fiscal\s+year\s+\d+\s+)?with)\s+(?P<value>[\d,]+)\s+(?P<unit>full-time employees|active permanent employees|employees)', re.IGNORECASE),
             "predicate": "headcount",
             "type": "NUMERICAL"
         },
-        # Capital Deployment / Capex e.g. "accelerate capital deployment by an additional 40% in the coming cycle"
         {
             "category": "Capital Expenditure",
-            "regex": r'accelerate\s+(?:capital\s+deployment|capex)\s+by\s+(?:an\s+additional\s+)?(?P<value>[\d.]%+)',
+            "regex": re.compile(r'accelerate\s+(?:capital\s+deployment|capex)\s+by\s+(?:an\s+additional\s+)?(?P<value>[\d.]%+)', re.IGNORECASE),
             "predicate": "capital deployment growth",
             "type": "PERCENTAGE"
         }
     ]
 
+    # FAST SUBSTRING MATCHING SET
+    CURRENCY_INDICATORS = {"$", "€", "£", "₹", "USD", "EUR", "billion", "million"}
+    SKIP_PREDICATES = {"quarter", "year", "results", "figure", "table", "december"}
+
     @classmethod
     def extract_facts_from_pages(cls, doc_id: str, filename: str, pages: List[PDFPageData]) -> List[Dict[str, Any]]:
         extracted_facts: List[Dict[str, Any]] = []
 
-        for page in pages:
-            doc = nlp(page.text)
-            
+        page_texts = [page.text for page in pages]
+        
+        # Heavy duty parallel processing utilizing available cores
+        n_cores = max(1, multiprocessing.cpu_count() - 1)
+        docs = list(nlp.pipe(page_texts, batch_size=50, n_process=n_cores))
+
+        for page_idx, doc in enumerate(docs):
+            page = pages[page_idx]
+            page_blocks = page.blocks 
+
             for sent in doc.sents:
                 sent_text = sent.text.strip()
                 if len(sent_text) < 15:
                     continue
 
-                bbox = None
-                for block in page.blocks:
-                    if sent_text in block["text"] or block["text"] in sent_text:
-                        bbox = block["bbox"]
-                        break
+                # Short-circuit generator for faster bounding box lookup
+                bbox = next((block["bbox"] for block in page_blocks if sent_text in block["text"] or block["text"] in sent_text), None)
 
-                matched_patterns = cls._apply_pattern_rules(sent, sent_text)
-                for item in matched_patterns:
-                    fact_obj = cls._build_fact_dict(
-                        doc_id=doc_id,
-                        filename=filename,
-                        page_number=page.page_number,
-                        source_text=sent_text,
-                        page_text=page.text,
-                        subject=item["subject"],
-                        predicate=item["predicate"],
-                        raw_value=item["raw_value"],
-                        fact_type=item["fact_type"],
-                        bbox=bbox,
-                        confidence=0.95
-                    )
-                    extracted_facts.append(fact_obj)
+                # Cache entities and chunks to avoid redundant spacy property evaluations
+                ents = sent.ents
 
-                if not matched_patterns:
-                    nlp_facts = cls._apply_nlp_extraction(sent, sent_text)
+                matched_patterns = cls._apply_pattern_rules(ents, sent_text)
+                if matched_patterns:
+                    for item in matched_patterns:
+                        extracted_facts.append(cls._build_fact_dict(
+                            doc_id, filename, page.page_number, sent_text, page.text,
+                            item["subject"], item["predicate"], item["raw_value"],
+                            item["fact_type"], bbox, 0.95
+                        ))
+                else:
+                    nlp_facts = cls._apply_nlp_extraction(sent, ents)
                     for item in nlp_facts:
-                        fact_obj = cls._build_fact_dict(
-                            doc_id=doc_id,
-                            filename=filename,
-                            page_number=page.page_number,
-                            source_text=sent_text,
-                            page_text=page.text,
-                            subject=item["subject"],
-                            predicate=item["predicate"],
-                            raw_value=item["raw_value"],
-                            fact_type=item["fact_type"],
-                            bbox=bbox,
-                            confidence=item["confidence"]
-                        )
-                        extracted_facts.append(fact_obj)
+                        extracted_facts.append(cls._build_fact_dict(
+                            doc_id, filename, page.page_number, sent_text, page.text,
+                            item["subject"], item["predicate"], item["raw_value"],
+                            item["fact_type"], bbox, item["confidence"]
+                        ))
 
         return extracted_facts
 
     @classmethod
-    def _apply_pattern_rules(cls, sent_spacy, sent_text: str) -> List[Dict[str, Any]]:
+    def _apply_pattern_rules(cls, ents, sent_text: str) -> List[Dict[str, Any]]:
         results = []
         for pat in cls.PATTERNS:
-            match = re.search(pat["regex"], sent_text, re.IGNORECASE)
+            match = pat["regex"].search(sent_text)
             if match:
                 groups = match.groupdict()
                 raw_val = groups.get("value", "")
-                
                 subject = groups.get("subject", "").strip()
+
                 if not subject or len(subject) < 2 or "company" in subject.lower():
-                    orgs = [ent.text for ent in sent_spacy.ents if ent.label_ in ["ORG", "PRODUCT"]]
-                    subject = orgs[0] if orgs else "Company / Entity"
+                    # Fast generator fallback
+                    orgs = next((ent.text for ent in ents if ent.label_ in ("ORG", "PRODUCT")), None)
+                    subject = orgs if orgs else "Company / Entity"
 
                 pred = pat["predicate"]
-                if groups.get("qualifier"):
-                    pred = f"{groups['qualifier']} {pred}"
+                qual = groups.get("qualifier")
+                if qual:
+                    pred = f"{qual} {pred}"
 
                 results.append({
                     "subject": subject,
@@ -160,31 +153,39 @@ class FactExtractionEngine:
                 })
         return results
 
-
     @classmethod
-    def _apply_nlp_extraction(cls, sent_spacy, sent_text: str) -> List[Dict[str, Any]]:
-        results = []
-        ents = sent_spacy.ents
+    def _apply_nlp_extraction(cls, sent_spacy, ents) -> List[Dict[str, Any]]:
+        num_ents, org_ents = [], []
         
-        num_ents = [e for e in ents if e.label_ in ["MONEY", "PERCENT", "QUANTITY", "CARDINAL"]]
-        org_ents = [e for e in ents if e.label_ in ["ORG", "GPE", "PERSON"]]
+        # Single pass entity categorization
+        for e in ents:
+            lbl = e.label_
+            if lbl in ("MONEY", "PERCENT", "QUANTITY", "CARDINAL"):
+                num_ents.append(e)
+            elif lbl in ("ORG", "GPE", "PERSON"):
+                org_ents.append(e)
+
+        if not num_ents:
+            return []
+
+        results = []
         default_subj = org_ents[0].text if org_ents else "Corporate Entity"
+        noun_chunks = list(sent_spacy.noun_chunks)
 
         for val_ent in num_ents:
-            # Filter out bare single digits or isolated ordinal years
             raw_val = val_ent.text.strip()
-            if len(raw_val) == 4 and raw_val.startswith(("19", "20")):
-                continue  # likely a year, not a metric
-            if len(raw_val) < 2 and not raw_val.isdigit():
+            # Fast rejection logic
+            if (len(raw_val) == 4 and raw_val.startswith(("19", "20"))) or (len(raw_val) < 2 and not raw_val.isdigit()):
                 continue
 
-            # Determine best predicate from sentence noun chunks or tokens near the entity
             pred = "reported metric"
             found_pred = False
-            for chunk in sent_spacy.noun_chunks:
+            
+            for chunk in noun_chunks:
                 if val_ent.start >= chunk.start and val_ent.end <= chunk.end:
-                    clean_chunk = re.sub(re.escape(val_ent.text), '', chunk.text).strip()
-                    if clean_chunk and len(clean_chunk) > 2:
+                    # String replace is much faster than re.sub + re.escape here
+                    clean_chunk = chunk.text.replace(val_ent.text, '').strip()
+                    if len(clean_chunk) > 2:
                         pred = clean_chunk
                         found_pred = True
                         break
@@ -194,15 +195,17 @@ class FactExtractionEngine:
 
             if not found_pred:
                 for token in sent_spacy:
-                    if token.pos_ in ["NOUN"] and token.dep_ in ["ROOT", "dobj", "pobj", "attr"]:
-                        if token.text.lower() not in ["quarter", "year", "results", "figure", "table", "december"]:
-                            pred = token.text.lower()
+                    if token.pos_ == "NOUN" and token.dep_ in ("ROOT", "dobj", "pobj", "attr"):
+                        lower_txt = token.text.lower()
+                        if lower_txt not in cls.SKIP_PREDICATES:
+                            pred = lower_txt
                             break
 
+            lbl = val_ent.label_
             fact_type = "NUMERICAL"
-            if val_ent.label_ == "MONEY" or any(c in raw_val for c in ["$", "€", "£", "₹", "USD", "EUR", "billion", "million"]):
+            if lbl == "MONEY" or any(c in raw_val for c in cls.CURRENCY_INDICATORS):
                 fact_type = "CURRENCY"
-            elif val_ent.label_ == "PERCENT" or "%" in raw_val or "percent" in raw_val.lower():
+            elif lbl == "PERCENT" or "%" in raw_val or "percent" in raw_val.lower():
                 fact_type = "PERCENTAGE"
 
             results.append({
@@ -212,9 +215,8 @@ class FactExtractionEngine:
                 "fact_type": fact_type,
                 "confidence": 0.88
             })
-            
-        return results
 
+        return results
 
     @classmethod
     def _build_fact_dict(
@@ -231,7 +233,10 @@ class FactExtractionEngine:
         bbox: Optional[List[float]],
         confidence: float
     ) -> Dict[str, Any]:
-        fact_id = f"F-{uuid.uuid4().hex[:6].upper()}"
+        # Generate single UUID to slice from (halves UUID generation overhead)
+        hex_str = uuid.uuid4().hex
+        fact_id = f"F-{hex_str[:6].upper()}"
+        ev_id = f"EV-{hex_str[6:12].upper()}"
 
         norm_res = FactNormalizer.normalize_number_and_unit(raw_value)
         temp_res = FactNormalizer.extract_temporal_context(source_text, page_text)
@@ -255,7 +260,7 @@ class FactExtractionEngine:
             "scope_qualifiers": scope_quals,
             "confidence": round(confidence, 2),
             "evidence": {
-                "id": f"EV-{uuid.uuid4().hex[:6].upper()}",
+                "id": ev_id,
                 "fact_id": fact_id,
                 "document_id": doc_id,
                 "filename": filename,

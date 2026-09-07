@@ -3,19 +3,15 @@ from typing import List, Dict, Any, Optional, Tuple
 
 
 class RelationshipEngine:
-    """Multi-dimensional deterministic relationship reasoning engine."""
 
     @classmethod
     def analyze_pair(cls, fact_a: Dict[str, Any], fact_b: Dict[str, Any]) -> Dict[str, Any]:
-        """Compares two facts on entity, metric, temporal, scope, and numeric dimensions."""
-        
         id_a = fact_a.get("id", fact_a.get("fact_id", "F-UNK"))
         id_b = fact_b.get("id", fact_b.get("fact_id", "F-UNK"))
         raw_val_a = fact_a.get("raw_value", "")
         raw_val_b = fact_b.get("raw_value", "")
         pred_a = fact_a.get("predicate", "")
 
-        # 1. Check for Audit / Extraction Failure first
         failure_reason = cls._check_extraction_failure(fact_a, fact_b)
         if failure_reason:
             return {
@@ -29,7 +25,6 @@ class RelationshipEngine:
                 "context_diffs": failure_reason["diffs"]
             }
 
-        # Compare dimensions
         same_entity = cls._is_same_entity(fact_a, fact_b)
         same_metric = cls._is_same_metric(fact_a, fact_b)
         temp_comp = cls._compare_temporal_context(fact_a, fact_b)
@@ -39,7 +34,6 @@ class RelationshipEngine:
         doc_a_name = fact_a.get("evidence", {}).get("filename", "Doc A")
         doc_b_name = fact_b.get("evidence", {}).get("filename", "Doc B")
 
-        # 2. Check for Contextual Difference (Accounting definition or Scope mismatch)
         if scope_comp["has_diff"]:
             reason = (
                 f"Apparent variance between {raw_val_a} ({doc_a_name}) and {raw_val_b} ({doc_b_name}) "
@@ -78,7 +72,6 @@ class RelationshipEngine:
                 }
             }
 
-        # 3. Same entity + Same metric + Same period -> Compare Values
         if same_entity and same_metric and temp_comp["status"] == "SAME_PERIOD":
             if val_comp["is_equal"]:
                 reason = (
@@ -129,11 +122,9 @@ class RelationshipEngine:
 
     @classmethod
     def evaluate_pairs(cls, candidate_pairs: List[Tuple[Dict[str, Any], Dict[str, Any]]]) -> List[Dict[str, Any]]:
-        """Batch analyzes candidate fact pairs and enriches them for display."""
         results = []
         for fact_a, fact_b in candidate_pairs:
             rel = cls.analyze_pair(fact_a, fact_b)
-            # Add enriched presentation fields
             id_a = fact_a.get("id", fact_a.get("fact_id", "F-1"))
             id_b = fact_b.get("id", fact_b.get("fact_id", "F-2"))
             rel["fact_ids"] = [id_a, id_b]
@@ -155,7 +146,6 @@ class RelationshipEngine:
 
     @classmethod
     def _check_extraction_failure(cls, fact_a: Dict[str, Any], fact_b: Dict[str, Any]) -> Optional[Dict[str, Any]]:
-        """Identifies extraction failures such as unnamed entities, relative dates, or missing baselines."""
         import re
         for fact in [fact_a, fact_b]:
             src = fact.get("evidence", {}).get("source_text", "").lower()
@@ -209,7 +199,7 @@ class RelationshipEngine:
         e2 = fact_b.get("entity_id")
         if e1 and e2 and e1 == e2 and e1 != "ENT-000":
             return True
-            
+
         s1 = fact_a.get("subject", "").lower().strip()
         s2 = fact_b.get("subject", "").lower().strip()
         if not s1 or not s2:
@@ -223,9 +213,9 @@ class RelationshipEngine:
         if norm1 == norm2 and norm1 != "":
             return True
 
-        # Token set overlap
-        tokens1 = set(re.findall(r'\w+', norm1)) - {"company", "corp", "corporation", "inc", "ltd", "the", "group", "holdings", "our", "business", "segment", "unit"}
-        tokens2 = set(re.findall(r'\w+', norm2)) - {"company", "corp", "corporation", "inc", "ltd", "the", "group", "holdings", "our", "business", "segment", "unit"}
+        stopwords = {"company", "corp", "corporation", "inc", "ltd", "the", "group", "holdings", "our", "business", "segment", "unit"}
+        tokens1 = set(re.findall(r'\w+', norm1)) - stopwords
+        tokens2 = set(re.findall(r'\w+', norm2)) - stopwords
         if tokens1 and tokens2:
             if tokens1.issubset(tokens2) or tokens2.issubset(tokens1):
                 return True
@@ -240,7 +230,6 @@ class RelationshipEngine:
         if any(w in s1 for w in ["company", "corporation", "enterprise", "firm", "group"]) and any(w in s2 for w in ["company", "corporation", "enterprise", "firm", "group"]):
             return True
 
-            
         return False
 
     @classmethod
