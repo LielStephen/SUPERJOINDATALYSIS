@@ -1,23 +1,9 @@
-# Python
+fact_knowledge.db
+sample_pdfs/
+uploads/
 __pycache__/
-*.py[cod]
-*$py.class
-*.so
-.Python
-env/
-venv/
-.venv/
-
-# Environment variables and secrets
+*.pyc
+.pytest_cache/
+node_modules/
 .env
-.env.local
-.env.*
-!.env.example
-.streamlit/secrets.toml
-
-# Operating System and Editors
-.DS_Store
-Thumbs.db
-.vscode/
-.idea/
-*.log
+.venv/
