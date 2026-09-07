@@ -1,5 +1,6 @@
 import os
 import sys
+import html
 from pathlib import Path
 
 # Register root directory in sys.path
@@ -145,12 +146,17 @@ st.markdown(
     .rel-card-recon { border-left: 4px solid #38bdf8; }
     .rel-card-audit { border-left: 4px solid #f59e0b; }
 
+    .claim-grid {
+        display: grid;
+        grid-template-columns: repeat(auto-fit, minmax(280px, 1fr));
+        gap: 0.85rem;
+        margin-top: 0.75rem;
+    }
     .claim-box {
         background: rgba(30, 41, 59, 0.4);
         border: 1px solid rgba(255, 255, 255, 0.05);
         border-radius: 8px;
         padding: 0.85rem 1rem;
-        margin-top: 0.6rem;
     }
     .doc-tag {
         font-size: 0.72rem;
@@ -348,11 +354,13 @@ if run_analysis:
         prog_bar = st.progress(0, text="🚀 Starting local pipeline analysis...")
         status_box = st.empty()
         try:
-            facts, rels = run_local_pipeline(uploaded_files, progress_bar=prog_bar, status_container=status_box)
-            st.session_state.facts = facts
-            st.session_state.relationships = rels
+            extracted_facts, extracted_rels = run_local_pipeline(uploaded_files, progress_bar=prog_bar, status_container=status_box)
+            st.session_state.facts = extracted_facts
+            st.session_state.relationships = extracted_rels
             st.session_state.dataset_label = f"Custom Upload ({len(uploaded_files)} PDFs)"
-            st.rerun()
+            prog_bar.empty()
+            status_box.empty()
+            st.success(f"✅ Processed {len(uploaded_files)} documents! Extracted {len(extracted_facts)} facts & {len(extracted_rels)} cross-document relationships.")
         except Exception as exc:
             prog_bar.empty()
             status_box.empty()
@@ -373,7 +381,7 @@ source_docs = set(f.get("source_doc", "") for f in facts)
 st.markdown(
     f"""
     <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom:1rem;">
-        <span style="font-size:0.85rem; color:#94a3b8; font-weight:600;">Active Dataset: <strong style="color:#38bdf8;">{st.session_state.get('dataset_label', 'Active Analysis')}</strong></span>
+        <span style="font-size:0.85rem; color:#94a3b8; font-weight:600;">Active Dataset: <strong style="color:#38bdf8;">{html.escape(str(st.session_state.get('dataset_label', 'Active Analysis')))}</strong></span>
         <span style="font-size:0.8rem; color:#64748b;">Grounding: In-Memory PyMuPDF + spaCy</span>
     </div>
     """,
@@ -429,56 +437,54 @@ def render_relationship_cards(items, card_type="corr"):
         return
 
     for item in items:
-        rel_id = item.get("relationship_id") or item.get("id", "R-001")
-        category = item.get("category", "Analysis")
-        reasoning = item.get("reasoning", "")
-        diagnostic = item.get("diagnostic_fix")
+        rel_id = html.escape(str(item.get("relationship_id") or item.get("id", "R-001")))
+        category = html.escape(str(item.get("category", "Analysis")))
+        reasoning = html.escape(str(item.get("reasoning", "")))
+        diagnostic = html.escape(str(item.get("diagnostic_fix") or "")) if item.get("diagnostic_fix") else ""
         claims = item.get("competing_claims", [])
         quotes = item.get("source_quotes", [])
         docs = item.get("source_docs", [])
+        conf_val = item.get('confidence', 0.95)
+        conf_pct = conf_val * 100 if isinstance(conf_val, (int, float)) else 95
 
-        st.markdown(
-            f"""
-            <div class="rel-card rel-card-{card_type}">
-                <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom:0.75rem;">
-                    <div>
-                        <span class="fact-id">{rel_id}</span>
-                        <strong style="margin-left:8px; font-size:1rem; color:#f8fafc;">{category}</strong>
-                    </div>
-                    <span style="font-size:0.75rem; color:#94a3b8; font-weight:600;">Confidence: {item.get('confidence', 0.95)*100:.0f}%</span>
+        claims_html = []
+        claim_count = max(len(claims), len(docs), 1)
+        for idx in range(claim_count):
+            doc_name = html.escape(str(docs[idx])) if idx < len(docs) else "Document"
+            claim_text = html.escape(str(claims[idx])) if idx < len(claims) else "Extracted claim"
+            quote_text = html.escape(str(quotes[idx])) if idx < len(quotes) else ""
+            quote_markup = f'<div class="quote-text">"{quote_text}"</div>' if quote_text else ""
+
+            claims_html.append(f"""
+                <div class="claim-box">
+                    <span class="doc-tag">📄 {doc_name}</span>
+                    <div style="font-weight:600; font-size:0.92rem; color:#f1f5f9; margin-bottom:0.4rem;">{claim_text}</div>
+                    {quote_markup}
                 </div>
-            """,
-            unsafe_allow_html=True
-        )
+            """)
 
-        cols = st.columns(max(len(claims), 1))
-        for idx, col in enumerate(cols):
-            with col:
-                doc_name = docs[idx] if idx < len(docs) else "Document"
-                claim_text = claims[idx] if idx < len(claims) else "Extracted claim"
-                quote_text = quotes[idx] if idx < len(quotes) else ""
+        claims_joined = "".join(claims_html)
+        diagnostic_markup = f'<div class="diagnostic-fix"><strong>⚠️ Diagnostic Fix Action:</strong> {diagnostic}</div>' if diagnostic else ""
 
-                st.markdown(
-                    f"""
-                    <div class="claim-box">
-                        <span class="doc-tag">📄 {doc_name}</span>
-                        <div style="font-weight:600; font-size:0.92rem; color:#f1f5f9; margin-bottom:0.4rem;">{claim_text}</div>
-                        {f'<div class="quote-text">"{quote_text}"</div>' if quote_text else ''}
-                    </div>
-                    """,
-                    unsafe_allow_html=True
-                )
-
-        st.markdown(
-            f"""
-                <div class="reasoning-box">
-                    <strong>💡 Reconciliation Reasoning:</strong> {reasoning}
+        card_html = f"""
+        <div class="rel-card rel-card-{card_type}">
+            <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom:0.75rem;">
+                <div>
+                    <span class="fact-id">{rel_id}</span>
+                    <strong style="margin-left:8px; font-size:1rem; color:#f8fafc;">{category}</strong>
                 </div>
-                {f'<div class="diagnostic-fix"><strong>⚠️ Diagnostic Fix Action:</strong> {diagnostic}</div>' if diagnostic else ''}
+                <span style="font-size:0.75rem; color:#94a3b8; font-weight:600;">Confidence: {conf_pct:.0f}%</span>
             </div>
-            """,
-            unsafe_allow_html=True
-        )
+            <div class="claim-grid">
+                {claims_joined}
+            </div>
+            <div class="reasoning-box">
+                <strong>💡 Reconciliation Reasoning:</strong> {reasoning}
+            </div>
+            {diagnostic_markup}
+        </div>
+        """
+        st.markdown(card_html, unsafe_allow_html=True)
 
 
 with tab_corr:
@@ -500,13 +506,15 @@ with tab_audit:
 with tab_facts:
     st.caption("Discrete, atomic extracted facts normalized into structured key-value entities.")
     for f in facts:
-        fid = f.get("fact_id") or f.get("id", "F-001")
-        subj = f.get("subject", f.get("entity", "Corporate Entity"))
-        metric = f.get("raw_value") or f.get("metric_or_value", "")
-        pred = f.get("predicate", "statement")
-        src = f.get("source_doc", "")
-        quote = f.get("verbatim_quote") or f.get("evidence", {}).get("source_text", "")
-        temp = f.get("temporal_period", "")
+        fid = html.escape(str(f.get("fact_id") or f.get("id", "F-001")))
+        subj = html.escape(str(f.get("subject", f.get("entity", "Corporate Entity"))))
+        metric = html.escape(str(f.get("raw_value") or f.get("metric_or_value", "")))
+        pred = html.escape(str(f.get("predicate", "statement")))
+        src = html.escape(str(f.get("source_doc", "")))
+        quote = html.escape(str(f.get("verbatim_quote") or f.get("evidence", {}).get("source_text", "")))
+        temp = html.escape(str(f.get("temporal_period", ""))) if f.get("temporal_period") else ""
+        temp_badge = f'<span class="badge-pill" style="margin-left:6px;">{temp}</span>' if temp else ''
+        quote_markup = f'"{quote}"' if quote else ""
 
         st.markdown(
             f"""
@@ -519,12 +527,12 @@ with tab_facts:
                     </div>
                     <div>
                         <span style="font-weight:700; color:#38bdf8; font-size:1.05rem;">{metric}</span>
-                        {f'<span class="badge-pill" style="margin-left:6px;">{temp}</span>' if temp else ''}
+                        {temp_badge}
                     </div>
                 </div>
                 <div style="margin-top:0.5rem; display:flex; justify-content:space-between; align-items:flex-end;">
                     <div style="color:#94a3b8; font-size:0.82rem; font-style:italic; max-width:80%;">
-                        "{quote}"
+                        {quote_markup}
                     </div>
                     <span class="doc-tag">📄 {src}</span>
                 </div>
