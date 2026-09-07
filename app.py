@@ -10,6 +10,8 @@ from pydantic import BaseModel, Field
 from google import genai
 from google.genai import types
 
+from sample_data import SAMPLE_FACTS, SAMPLE_RELATIONSHIPS
+
 
 class ExtractedFact(BaseModel):
     fact_id: str = Field(description="Unique identifier for this fact, e.g. F-001")
@@ -373,6 +375,12 @@ with st.sidebar:
         help="Your Google AI Studio API key",
     )
     selected_model = st.selectbox("Model", AVAILABLE_MODELS, index=0)
+    ingestion_mode = st.radio(
+        "Ingestion Mode",
+        ["Replace Knowledge Layer", "Incremental (Append New PDFs)"],
+        index=0,
+        help="Incremental mode appends newly extracted facts to existing knowledge without rebuilding.",
+    )
     st.markdown("---")
     st.markdown("### 📁 Upload Documents")
     uploaded_files = st.file_uploader(
@@ -383,6 +391,13 @@ with st.sidebar:
     )
     st.markdown("---")
     run_analysis = st.button("🚀 Run Analysis", use_container_width=True, type="primary", disabled=not api_key or not uploaded_files)
+
+    if st.button("⚡ Load Demo Dataset", use_container_width=True, help="Load precomputed dataset demonstrating all 4 challenge cases"):
+        st.session_state.facts = list(SAMPLE_FACTS)
+        st.session_state.relationships = list(SAMPLE_RELATIONSHIPS)
+        st.session_state.analysis_complete = True
+        st.session_state.corpus_hash = "sample-eval"
+        st.rerun()
 
     if st.session_state.get("analysis_complete", False):
         if st.button("🔄 Reset Analysis", use_container_width=True):
@@ -411,7 +426,7 @@ if "corpus_hash" not in st.session_state:
     st.session_state.corpus_hash = None
 
 if run_analysis:
-    if len(uploaded_files) < 2:
+    if len(uploaded_files) < 2 and ingestion_mode == "Replace Knowledge Layer":
         st.warning("Upload at least 2 PDF documents for meaningful cross-referencing.")
     else:
         file_bytes = b"".join(uf.getvalue() for uf in uploaded_files)
@@ -429,16 +444,24 @@ if run_analysis:
         client = get_gemini_client(api_key)
 
         with st.spinner("🔬 Stage 1 — Strict fact extraction via Gemini…"):
-            facts = run_extraction(client, selected_model, corpus)
+            new_facts = run_extraction(client, selected_model, corpus)
 
-        if not facts:
+        if not new_facts:
             st.error("Extraction returned zero facts. Check the documents and API key.")
             st.stop()
 
-        with st.spinner("🔗 Stage 2 — Cross-referencing facts across documents…"):
-            relationships = run_cross_reference(client, selected_model, facts)
+        if ingestion_mode == "Incremental (Append New PDFs)" and st.session_state.facts:
+            existing_count = len(st.session_state.facts)
+            for i, f in enumerate(new_facts):
+                f["fact_id"] = f"F-{existing_count + i + 1:03d}"
+            cumulative_facts = st.session_state.facts + new_facts
+        else:
+            cumulative_facts = new_facts
 
-        st.session_state.facts = facts
+        with st.spinner("🔗 Stage 2 — Cross-referencing facts across documents…"):
+            relationships = run_cross_reference(client, selected_model, cumulative_facts)
+
+        st.session_state.facts = cumulative_facts
         st.session_state.relationships = relationships
         st.session_state.analysis_complete = True
         st.session_state.corpus_hash = current_hash
@@ -448,11 +471,19 @@ if not st.session_state.analysis_complete:
     st.markdown(
         """<div class="empty-state">
             <div class="icon">📂</div>
-            <h3 style="color:#ccd6f6; font-weight:500;">No analysis yet</h3>
-            <p>Upload PDF documents in the sidebar, enter your Gemini API key, and click <strong>Run Analysis</strong> to begin.</p>
+            <h3 style="color:#ccd6f6; font-weight:500;">No active analysis</h3>
+            <p>Upload PDF documents in the sidebar to run live extraction with Gemini, or load the precomputed evaluation dataset showcasing all four required challenge cases.</p>
         </div>""",
         unsafe_allow_html=True,
     )
+    col_a, col_b, col_c = st.columns([1, 2, 1])
+    with col_b:
+        if st.button("⚡ Load Demo Evaluation Dataset (Zero Setup)", use_container_width=True, type="secondary"):
+            st.session_state.facts = list(SAMPLE_FACTS)
+            st.session_state.relationships = list(SAMPLE_RELATIONSHIPS)
+            st.session_state.analysis_complete = True
+            st.session_state.corpus_hash = "sample-eval"
+            st.rerun()
     st.stop()
 
 facts = st.session_state.facts
