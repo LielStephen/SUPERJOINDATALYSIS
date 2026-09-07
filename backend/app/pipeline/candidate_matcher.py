@@ -7,6 +7,7 @@ class CandidateFactMatcher:
     @classmethod
     def get_candidate_pairs(cls, facts: List[Dict[str, Any]]) -> List[Tuple[Dict[str, Any], Dict[str, Any]]]:
         """Group facts by predicate / metric category and return valid cross-document candidate pairs."""
+
         candidate_pairs: List[Tuple[Dict[str, Any], Dict[str, Any]]] = []
         seen_pair_keys = set()
 
@@ -37,6 +38,12 @@ class CandidateFactMatcher:
                     candidate_pairs.append((fact_a, fact_b))
 
         return candidate_pairs
+
+    @classmethod
+    def find_candidate_pairs(cls, facts: List[Dict[str, Any]]) -> List[Tuple[Dict[str, Any], Dict[str, Any]]]:
+        """Alias for get_candidate_pairs for compatibility."""
+        return cls.get_candidate_pairs(facts)
+
 
     @classmethod
     def _get_predicate_key(cls, predicate: str, fact_type: str, raw_value: str) -> str:

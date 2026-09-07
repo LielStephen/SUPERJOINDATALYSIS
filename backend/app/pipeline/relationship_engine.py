@@ -1,5 +1,6 @@
 import uuid
-from typing import List, Dict, Any, Optional
+from typing import List, Dict, Any, Optional, Tuple
+
 
 class RelationshipEngine:
     """Multi-dimensional deterministic relationship reasoning engine."""
@@ -119,6 +120,32 @@ class RelationshipEngine:
             "diagnostic_fix": None,
             "context_diffs": {}
         }
+
+    @classmethod
+    def evaluate_pairs(cls, candidate_pairs: List[Tuple[Dict[str, Any], Dict[str, Any]]]) -> List[Dict[str, Any]]:
+        """Batch analyzes candidate fact pairs and enriches them for display."""
+        results = []
+        for fact_a, fact_b in candidate_pairs:
+            rel = cls.analyze_pair(fact_a, fact_b)
+            # Add enriched presentation fields
+            id_a = fact_a.get("id", fact_a.get("fact_id", "F-1"))
+            id_b = fact_b.get("id", fact_b.get("fact_id", "F-2"))
+            rel["fact_ids"] = [id_a, id_b]
+            rel["competing_claims"] = [
+                fact_a.get("statement", f"{fact_a.get('subject', '')} {fact_a.get('predicate', '')} {fact_a.get('raw_value', '')}".strip()),
+                fact_b.get("statement", f"{fact_b.get('subject', '')} {fact_b.get('predicate', '')} {fact_b.get('raw_value', '')}".strip())
+            ]
+            rel["source_docs"] = [
+                fact_a.get("evidence", {}).get("filename", fact_a.get("source_doc", "Doc A")),
+                fact_b.get("evidence", {}).get("filename", fact_b.get("source_doc", "Doc B"))
+            ]
+            rel["source_quotes"] = [
+                fact_a.get("evidence", {}).get("source_text", fact_a.get("verbatim_quote", "")),
+                fact_b.get("evidence", {}).get("source_text", fact_b.get("verbatim_quote", ""))
+            ]
+            results.append(rel)
+        return results
+
 
     @classmethod
     def _check_extraction_failure(cls, fact_a: Dict[str, Any], fact_b: Dict[str, Any]) -> Optional[Dict[str, Any]]:

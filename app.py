@@ -44,12 +44,22 @@ if "analysis_complete" not in st.session_state:
     st.session_state.analysis_complete = False
 
 
-def run_local_pipeline(uploaded_files):
+def run_local_pipeline(uploaded_files, progress_bar=None, status_container=None):
     all_facts = []
     entity_engine = EntityResolutionEngine()
+    total_docs = len(uploaded_files)
+
+    if progress_bar and status_container:
+        progress_bar.progress(5, text="📁 Preparing local temporary workspace...")
+        status_container.info("📁 Initializing local in-memory extraction engine...")
 
     with tempfile.TemporaryDirectory() as tmp_dir:
-        for uf in uploaded_files:
+        for idx, uf in enumerate(uploaded_files):
+            step_pct = int(10 + (idx / total_docs) * 40)
+            if progress_bar and status_container:
+                progress_bar.progress(step_pct, text=f"📄 Ingesting & parsing {uf.name} ({idx+1}/{total_docs})...")
+                status_container.info(f"📄 Parsing layout & text blocks from `{uf.name}`...")
+
             file_path = os.path.join(tmp_dir, uf.name)
             with open(file_path, "wb") as f:
                 f.write(uf.getvalue())
@@ -70,7 +80,11 @@ def run_local_pipeline(uploaded_files):
                 fdict["verbatim_quote"] = ev.get("source_text", fdict.get("statement", ""))
                 all_facts.append(fdict)
 
-    entity_engine.resolve_entities(all_facts)
+    if progress_bar and status_container:
+        progress_bar.progress(60, text="🧩 Resolving and clustering cross-document entities...")
+        status_container.info(f"🧩 Disambiguating {len(all_facts)} extracted facts across corporate entities...")
+
+    subject_entity_map = entity_engine.resolve_entities(all_facts)
 
     for f in all_facts:
         norm_ent = entity_engine.get_canonical_name(f.get("subject", f.get("entity", "")))
@@ -78,8 +92,16 @@ def run_local_pipeline(uploaded_files):
         if "statement" not in f or not f["statement"]:
             f["statement"] = f"{f.get('subject', '')} {f.get('predicate', '')} {f.get('raw_value', '')}".strip()
 
+    if progress_bar and status_container:
+        progress_bar.progress(80, text="⚖️ Matching candidate pairs & cross-document reasoning...")
+        status_container.info("⚖️ Evaluating cross-document corroborations, contradictions & scope differences...")
+
     candidate_pairs = CandidateFactMatcher.find_candidate_pairs(all_facts)
     relationships = RelationshipEngine.evaluate_pairs(candidate_pairs)
+
+    if progress_bar and status_container:
+        progress_bar.progress(100, text="✨ Analysis completed successfully!")
+        status_container.success(f"✅ Finished! Found {len(all_facts)} discrete facts and {len(relationships)} cross-document relationships.")
 
     return all_facts, relationships
 
@@ -118,15 +140,19 @@ if run_analysis:
     if not uploaded_files or len(uploaded_files) < 2:
         st.error("Please upload at least 2 PDF documents to run cross-document analysis.")
     else:
-        with st.spinner("🔬 Running local extraction, entity resolution & multi-dimensional reasoning..."):
-            try:
-                facts, rels = run_local_pipeline(uploaded_files)
-                st.session_state.facts = facts
-                st.session_state.relationships = rels
-                st.session_state.analysis_complete = True
-                st.success(f"Extracted {len(facts)} facts and {len(rels)} cross-document relationships successfully!")
-            except Exception as exc:
-                st.error(f"Analysis failed: {exc}")
+        prog_bar = st.progress(0, text="🚀 Starting local pipeline analysis...")
+        status_box = st.empty()
+        try:
+            facts, rels = run_local_pipeline(uploaded_files, progress_bar=prog_bar, status_container=status_box)
+            st.session_state.facts = facts
+            st.session_state.relationships = rels
+            st.session_state.analysis_complete = True
+            st.rerun()
+        except Exception as exc:
+            prog_bar.empty()
+            status_box.empty()
+            st.error(f"Analysis failed: {exc}")
+
 
 if not st.session_state.analysis_complete:
     st.markdown(
@@ -173,10 +199,11 @@ if not st.session_state.analysis_complete:
 facts = st.session_state.facts
 relationships = st.session_state.relationships
 
-corroborations = [r for r in relationships if r.get("category") == "Corroboration"]
-contradictions = [r for r in relationships if r.get("category") == "Contradiction"]
-reconciliations = [r for r in relationships if r.get("category") == "Contextual Reconciliation"]
-failures = [r for r in relationships if r.get("category") in ("Extraction Failure", "Uncertain")]
+corroborations = [r for r in relationships if r.get("category") in ("Corroboration", "CORROBORATES")]
+contradictions = [r for r in relationships if r.get("category") in ("Contradiction", "CONTRADICTS")]
+reconciliations = [r for r in relationships if r.get("category") in ("Contextual Reconciliation", "CONTEXTUALIZES", "TEMPORAL_CHANGE")]
+failures = [r for r in relationships if r.get("category") in ("Extraction Failure", "UNCERTAIN", "Uncertain")]
+
 
 source_docs = set(f.get("source_doc", "") for f in facts)
 
