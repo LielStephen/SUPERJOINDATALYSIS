@@ -12,7 +12,6 @@ import uuid
 import tempfile
 import streamlit as st
 
-
 from backend.app.pipeline.pdf_parser import PDFParser
 from backend.app.pipeline.fact_extractor import FactExtractionEngine
 from backend.app.pipeline.normalizer import FactNormalizer
@@ -28,7 +27,7 @@ st.set_page_config(
     initial_sidebar_state="expanded",
 )
 
-# Premium Dark Glassmorphic Design System
+# Custom CSS for Dark Glassmorphic Design System
 st.markdown(
     """
     <style>
@@ -209,12 +208,11 @@ st.markdown(
     unsafe_allow_html=True,
 )
 
-if "facts" not in st.session_state:
-    st.session_state.facts = []
-if "relationships" not in st.session_state:
-    st.session_state.relationships = []
-if "analysis_complete" not in st.session_state:
-    st.session_state.analysis_complete = False
+# Auto-initialize with benchmark evaluation data so outputs are immediately visible on load
+if "facts" not in st.session_state or not st.session_state.facts:
+    st.session_state.facts = list(SAMPLE_FACTS)
+    st.session_state.relationships = list(SAMPLE_RELATIONSHIPS)
+    st.session_state.dataset_label = "Demo Benchmark Dataset (7 Disclosures)"
 
 
 def run_local_pipeline(uploaded_files, progress_bar=None, status_container=None):
@@ -297,7 +295,7 @@ with st.sidebar:
     st.caption("Self-contained verification engine with zero external LLM dependencies.")
     st.markdown("---")
     
-    st.subheader("📁 Document Ingestion")
+    st.subheader("📁 Ingest Custom PDFs")
     uploaded_files = st.file_uploader(
         "Upload Corporate PDFs",
         type=["pdf"],
@@ -305,20 +303,20 @@ with st.sidebar:
         help="Upload 2 or more PDFs (Earnings releases, ESG reports, 10-Ks, strategy memos) to verify.",
     )
 
-    st.markdown("---")
-    run_analysis = st.button("🚀 Run Local Pipeline", type="primary", use_container_width=True)
+    run_analysis = st.button("🚀 Analyze Uploaded PDFs", type="primary", use_container_width=True)
 
-    if st.button("🗑️ Reset Workspace", use_container_width=True):
-        st.session_state.facts = []
-        st.session_state.relationships = []
-        st.session_state.analysis_complete = False
+    if st.button("⚡ Reset to Benchmark Demo Data", use_container_width=True):
+        st.session_state.facts = list(SAMPLE_FACTS)
+        st.session_state.relationships = list(SAMPLE_RELATIONSHIPS)
+        st.session_state.dataset_label = "Demo Benchmark Dataset (7 Disclosures)"
         st.rerun()
 
+    st.markdown("---")
     st.markdown(
         """
-        <div style="margin-top:2rem; padding:0.8rem; background:rgba(255,255,255,0.03); border-radius:8px; font-size:0.75rem; color:#94a3b8; line-height:1.5;">
+        <div style="padding:0.8rem; background:rgba(255,255,255,0.03); border-radius:8px; font-size:0.75rem; color:#94a3b8; line-height:1.5;">
             🔒 <strong>Zero Data Leakage</strong><br>
-            All PDF ingestion, regex tokenization, spaCy NLP, and reconciliation execute strictly in-memory.
+            All PDF vector ingestion, regex tokenization, and reconciliation execute strictly in-memory.
         </div>
         """,
         unsafe_allow_html=True
@@ -345,7 +343,7 @@ st.markdown(
 
 if run_analysis:
     if not uploaded_files or len(uploaded_files) < 2:
-        st.error("⚠️ Please upload at least 2 PDF documents to perform cross-document factual reconciliation.")
+        st.warning("⚠️ Please select and upload at least 2 PDF documents in the sidebar to perform cross-document factual reconciliation.")
     else:
         prog_bar = st.progress(0, text="🚀 Starting local pipeline analysis...")
         status_box = st.empty()
@@ -353,7 +351,7 @@ if run_analysis:
             facts, rels = run_local_pipeline(uploaded_files, progress_bar=prog_bar, status_container=status_box)
             st.session_state.facts = facts
             st.session_state.relationships = rels
-            st.session_state.analysis_complete = True
+            st.session_state.dataset_label = f"Custom Upload ({len(uploaded_files)} PDFs)"
             st.rerun()
         except Exception as exc:
             prog_bar.empty()
@@ -361,48 +359,7 @@ if run_analysis:
             st.error(f"Analysis failed: {exc}")
 
 
-if not st.session_state.analysis_complete:
-    st.markdown(
-        """
-        <div style="display:grid; grid-template-columns:repeat(auto-fit, minmax(260px, 1fr)); gap:1.2rem; margin-bottom:2.5rem;">
-            <div class="rel-card rel-card-recon">
-                <span style="font-size:1.6rem;">📄</span>
-                <h4 style="color:#f8fafc; margin:0.5rem 0 0.3rem 0; font-size:1.05rem; font-weight:700;">1. Page-Aware PDF Parsing</h4>
-                <p style="color:#94a3b8; font-size:0.85rem; line-height:1.55; margin:0;">
-                    Parses layout blocks, paragraphs, and coordinates using PyMuPDF to anchor every extracted metric directly to its source sentence.
-                </p>
-            </div>
-            <div class="rel-card rel-card-corr">
-                <span style="font-size:1.6rem;">🔬</span>
-                <h4 style="color:#f8fafc; margin:0.5rem 0 0.3rem 0; font-size:1.05rem; font-weight:700;">2. Entity Resolution & Normalization</h4>
-                <p style="color:#94a3b8; font-size:0.85rem; line-height:1.55; margin:0;">
-                    Disambiguates corporate entities and normalizes currencies ($4.2B → 4,200,000,000 USD), percentages, and fiscal calendars (FY23 vs Q4).
-                </p>
-            </div>
-            <div class="rel-card rel-card-contra">
-                <span style="font-size:1.6rem;">⚖️</span>
-                <h4 style="color:#f8fafc; margin:0.5rem 0 0.3rem 0; font-size:1.05rem; font-weight:700;">3. 4-Case Cross-Examination</h4>
-                <p style="color:#94a3b8; font-size:0.85rem; line-height:1.55; margin:0;">
-                    Evaluates multi-source claims into Corroborations, Genuine Contradictions, Contextual Reconciliations, and Extraction Failures.
-                </p>
-            </div>
-        </div>
-        """,
-        unsafe_allow_html=True,
-    )
-
-    col_a, col_b, col_c = st.columns([1, 2, 1])
-    with col_b:
-        if st.button("⚡ Load Benchmark Evaluation Dataset (Instant Demo)", use_container_width=True, type="primary"):
-            st.session_state.facts = list(SAMPLE_FACTS)
-            st.session_state.relationships = list(SAMPLE_RELATIONSHIPS)
-            st.session_state.analysis_complete = True
-            st.rerun()
-
-    st.stop()
-
-
-# Computed Relationship Groups
+# Current Active Facts & Relationships
 facts = st.session_state.facts
 relationships = st.session_state.relationships
 
@@ -411,6 +368,17 @@ contradictions = [r for r in relationships if r.get("category") in ("Contradicti
 reconciliations = [r for r in relationships if r.get("category") in ("Contextual Reconciliation", "CONTEXTUALIZES", "TEMPORAL_CHANGE")]
 failures = [r for r in relationships if r.get("category") in ("Extraction Failure", "UNCERTAIN", "Uncertain")]
 source_docs = set(f.get("source_doc", "") for f in facts)
+
+# Dataset Badge
+st.markdown(
+    f"""
+    <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom:1rem;">
+        <span style="font-size:0.85rem; color:#94a3b8; font-weight:600;">Active Dataset: <strong style="color:#38bdf8;">{st.session_state.get('dataset_label', 'Active Analysis')}</strong></span>
+        <span style="font-size:0.8rem; color:#64748b;">Grounding: In-Memory PyMuPDF + spaCy</span>
+    </div>
+    """,
+    unsafe_allow_html=True
+)
 
 # Metric Summary Strip
 st.markdown(
