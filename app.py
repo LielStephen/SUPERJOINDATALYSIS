@@ -484,6 +484,14 @@ if not st.session_state.analysis_complete:
             st.session_state.analysis_complete = True
             st.session_state.corpus_hash = "sample-eval"
             st.rerun()
+
+    st.markdown("---")
+    with st.expander("🗺️ View Interactive System Architecture (Archify)", expanded=False):
+        arch_file = os.path.join(os.path.dirname(__file__), "architecture.html")
+        if os.path.exists(arch_file):
+            with open(arch_file, "r", encoding="utf-8") as f:
+                st.components.v1.html(f.read(), height=680, scrolling=True)
+
     st.stop()
 
 facts = st.session_state.facts
@@ -582,6 +590,13 @@ with tab_audit:
                 render_fact_card(fact, 0)
 
 st.markdown("---")
+with st.expander("🗺️ Interactive System Architecture Map (Archify)", expanded=False):
+    st.caption("Interactive system architecture compiled with Archify — showing components, dataflow, and boundaries.")
+    arch_file = os.path.join(os.path.dirname(__file__), "architecture.html")
+    if os.path.exists(arch_file):
+        with open(arch_file, "r", encoding="utf-8") as f:
+            st.components.v1.html(f.read(), height=680, scrolling=True)
+
 with st.expander("📊 Full Fact Registry", expanded=False):
     for i, fact in enumerate(facts):
         render_fact_card(fact, i)

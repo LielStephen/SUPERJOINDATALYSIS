@@ -113,7 +113,12 @@ The system specifically detects and isolates the four review cases with grounded
 ## Approach
 
 ### 1. Architecture: Two-Stage Analytical Pipeline
-Rather than asking a model to perform extraction and cross-referencing in a single monolithic prompt, we separate the problem into two focused stages:
+The system architecture has been compiled and validated with **[Archify](https://github.com/tt-a1i/archify)** into a verifiable, self-contained interactive architecture diagram ([architecture.html](file:///e:/superjoindatalysis/SUPERJOINDATALYSIS/architecture.html)), which is also embedded directly within the Streamlit application.
+
+* **Architecture JSON IR**: [`architecture.json`](file:///e:/superjoindatalysis/SUPERJOINDATALYSIS/architecture.json)
+* **Compiled Interactive Map**: [`architecture.html`](file:///e:/superjoindatalysis/SUPERJOINDATALYSIS/architecture.html) (interactive node reach tracing, dark/light themes, and dataflow boundaries)
+
+Rather than asking a model to perform extraction and cross-referencing in a single monolithic prompt, we separate the pipeline into two focused stages:
 1. **Stage 1 (Strict Extraction)**:
    - In-memory PDF text extraction using `pypdf` with page tracking.
    - Zero-shot deterministic extraction using Gemini (`temperature=0.0`) bound to a Pydantic `ExtractionResult` response schema.
