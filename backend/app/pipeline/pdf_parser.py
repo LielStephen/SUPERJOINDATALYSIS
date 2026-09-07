@@ -1,6 +1,10 @@
 import os
 from typing import List, Dict, Any, Tuple
-import fitz  # PyMuPDF
+try:
+    import pymupdf as fitz
+except ImportError:
+    import fitz
+
 
 class PDFPageData:
     def __init__(self, page_number: int, text: str, blocks: List[Dict[str, Any]]):

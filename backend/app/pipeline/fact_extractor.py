@@ -8,9 +8,13 @@ from backend.app.pipeline.normalizer import FactNormalizer
 try:
     nlp = spacy.load("en_core_web_sm")
 except Exception:
-    import spacy.cli
-    spacy.cli.download("en_core_web_sm")
-    nlp = spacy.load("en_core_web_sm")
+    try:
+        import spacy.cli
+        spacy.cli.download("en_core_web_sm")
+        nlp = spacy.load("en_core_web_sm")
+    except Exception:
+        nlp = spacy.blank("en")
+
 
 class ExtractedFactItem:
     def __init__(
