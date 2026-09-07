@@ -1,3 +1,4 @@
+import os
 import json
 import hashlib
 import traceback
@@ -356,9 +357,21 @@ st.markdown("""
 </style>
 """, unsafe_allow_html=True)
 
+env_api_key = os.environ.get("GEMINI_API_KEY", "")
+try:
+    if not env_api_key and "GEMINI_API_KEY" in st.secrets:
+        env_api_key = st.secrets["GEMINI_API_KEY"]
+except Exception:
+    pass
+
 with st.sidebar:
     st.markdown("### 🔐 Configuration")
-    api_key = st.text_input("Gemini API Key", type="password", help="Your Google AI Studio API key")
+    api_key = st.text_input(
+        "Gemini API Key",
+        value=env_api_key,
+        type="password",
+        help="Your Google AI Studio API key",
+    )
     selected_model = st.selectbox("Model", AVAILABLE_MODELS, index=0)
     st.markdown("---")
     st.markdown("### 📁 Upload Documents")
@@ -370,6 +383,14 @@ with st.sidebar:
     )
     st.markdown("---")
     run_analysis = st.button("🚀 Run Analysis", use_container_width=True, type="primary", disabled=not api_key or not uploaded_files)
+
+    if st.session_state.get("analysis_complete", False):
+        if st.button("🔄 Reset Analysis", use_container_width=True):
+            st.session_state.facts = []
+            st.session_state.relationships = []
+            st.session_state.analysis_complete = False
+            st.session_state.corpus_hash = None
+            st.rerun()
 
     if uploaded_files:
         st.markdown(f"**{len(uploaded_files)}** document(s) staged")
@@ -534,7 +555,24 @@ with st.expander("📊 Full Fact Registry", expanded=False):
     for i, fact in enumerate(facts):
         render_fact_card(fact, i)
 
-with st.expander("🧾 Raw JSON Output", expanded=False):
+with st.expander("🧾 Raw JSON Output & Export", expanded=False):
+    export_col1, export_col2 = st.columns(2)
+    with export_col1:
+        st.download_button(
+            "📥 Download Facts JSON",
+            data=json.dumps(facts, indent=2),
+            file_name="extracted_facts.json",
+            mime="application/json",
+            use_container_width=True,
+        )
+    with export_col2:
+        st.download_button(
+            "📥 Download Cross-References JSON",
+            data=json.dumps(relationships, indent=2),
+            file_name="cross_references.json",
+            mime="application/json",
+            use_container_width=True,
+        )
     raw_tab1, raw_tab2 = st.tabs(["Extracted Facts", "Cross-References"])
     with raw_tab1:
         st.json(facts)
