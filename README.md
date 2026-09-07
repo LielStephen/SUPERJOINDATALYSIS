@@ -1,3 +1,14 @@
+---
+title: Fact Knowledge Layer
+emoji: ⚖️
+colorFrom: blue
+colorTo: indigo
+sdk: streamlit
+sdk_version: 1.32.0
+app_file: app.py
+pinned: false
+---
+
 # Fact Knowledge Layer: Multi-Document Factual Reconciliation Engine
 
 A 100% self-contained, evidence-grounded document intelligence system built with **Python, FastAPI, PyMuPDF, spaCy, SQLite, React, and Streamlit**.
