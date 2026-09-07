@@ -1,8 +1,17 @@
 import os
+import sys
+from pathlib import Path
+
+# Register root directory in sys.path
+ROOT_DIR = Path(__file__).resolve().parent
+if str(ROOT_DIR) not in sys.path:
+    sys.path.insert(0, str(ROOT_DIR))
+
 import json
 import uuid
 import tempfile
 import streamlit as st
+
 
 from backend.app.pipeline.pdf_parser import PDFParser
 from backend.app.pipeline.fact_extractor import FactExtractionEngine
