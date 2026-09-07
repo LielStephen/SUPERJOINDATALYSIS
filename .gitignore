@@ -1,9 +1,23 @@
-node_modules/
-.next/
-coverage/
-.DS_Store
-*.log
-.env*
-!.env.example
+# Python
 __pycache__/
-*.pyc
+*.py[cod]
+*$py.class
+*.so
+.Python
+env/
+venv/
+.venv/
+
+# Environment variables and secrets
+.env
+.env.local
+.env.*
+!.env.example
+.streamlit/secrets.toml
+
+# Operating System and Editors
+.DS_Store
+Thumbs.db
+.vscode/
+.idea/
+*.log
