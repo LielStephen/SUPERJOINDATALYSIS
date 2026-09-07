@@ -48,18 +48,33 @@ class CandidateFactMatcher:
     @classmethod
     def _get_predicate_key(cls, predicate: str, fact_type: str, raw_value: str) -> str:
         """Normalize predicate string into a metric category bucket key."""
+        import re
         p_clean = predicate.lower().strip()
         r_clean = raw_value.lower().strip()
         
-        if "operating margin" in p_clean or "margin" in p_clean or ("%" in r_clean and "margin" in p_clean):
+        if "margin" in p_clean:
             return "METRIC_OPERATING_MARGIN"
-        elif "revenue" in p_clean or "cloud" in p_clean or "billion" in r_clean:
+        elif "revenue" in p_clean or "sales" in p_clean or "turnover" in p_clean or "cloud" in p_clean:
             return "METRIC_REVENUE"
-        elif "headcount" in p_clean or "employee" in p_clean or "workforce" in p_clean:
+        elif "headcount" in p_clean or "employee" in p_clean or "workforce" in p_clean or "staff" in p_clean:
             return "METRIC_HEADCOUNT"
-        elif "capital" in p_clean or "capex" in p_clean or "deployment" in p_clean:
+        elif "income" in p_clean or "profit" in p_clean or "loss" in p_clean or "ebit" in p_clean or "earnings" in p_clean:
+            return "METRIC_PROFIT_LOSS"
+        elif "capital" in p_clean or "capex" in p_clean or "deployment" in p_clean or "investment" in p_clean:
             return "METRIC_CAPEX"
-        elif "growth" in p_clean or "expansion" in p_clean:
+        elif "growth" in p_clean or "expansion" in p_clean or "increase" in p_clean or "decline" in p_clean:
             return "METRIC_GROWTH"
+        elif "eps" in p_clean or "per share" in p_clean:
+            return "METRIC_EPS"
+        elif "debt" in p_clean or "borrowing" in p_clean or "liability" in p_clean:
+            return "METRIC_DEBT"
+        elif "cash" in p_clean or "liquidity" in p_clean:
+            return "METRIC_CASH"
+        elif "deliver" in p_clean or "shipment" in p_clean or "production" in p_clean or "volume" in p_clean:
+            return "METRIC_VOLUME"
         else:
+            words = [w for w in re.findall(r'\b[a-z]{3,}\b', p_clean) if w not in ['the', 'and', 'for', 'was', 'were', 'our', 'with', 'from', 'has', 'reported']]
+            if words:
+                return f"METRIC_{words[0].upper()}"
             return f"GENERIC_{fact_type}"
+

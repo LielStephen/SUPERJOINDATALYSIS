@@ -150,22 +150,34 @@ class RelationshipEngine:
     @classmethod
     def _check_extraction_failure(cls, fact_a: Dict[str, Any], fact_b: Dict[str, Any]) -> Optional[Dict[str, Any]]:
         """Identifies extraction failures such as unnamed entities, relative dates, or missing baselines."""
+        import re
         for fact in [fact_a, fact_b]:
-            src = fact.get("evidence", {}).get("source_text", "")
-            subj = fact.get("subject", "").lower()
+            src = fact.get("evidence", {}).get("source_text", "").lower()
+            subj = fact.get("subject", "").lower().strip()
 
-            unnamed_entity = "regional subsidiary" in subj or "newly formed" in src.lower() or "regional subsidiary" in src.lower()
-            is_relative_temp = fact.get("temporal_type") == "RELATIVE" or "coming cycle" in src.lower()
-            missing_baseline = fact.get("fact_type") == "PERCENTAGE" and "accelerate" in src.lower() and not any(c in src for c in ["$", "USD", "billion", "million"])
+            unnamed_entity = (
+                any(phrase in subj for phrase in ["unnamed", "newly formed", "regional subsidiary", "target entity", "the subsidiary", "the business unit", "this entity"])
+                or (subj in ["subsidiary", "entity", "company", "unit", "division", "segment"] and not any(k in subj for k in ["inc", "corp", "ltd", "co"]))
+            )
+            is_relative_temp = (
+                fact.get("temporal_type") == "RELATIVE"
+                or any(phrase in src for phrase in ["coming cycle", "near future", "next phase", "upcoming period", "in due course", "coming months"])
+            )
+            missing_baseline = (
+                fact.get("fact_type") == "PERCENTAGE"
+                and any(v in src for v in ["accelerate", "increase", "grow", "expand", "boost", "scale"])
+                and not any(c in src for c in ["$", "usd", "€", "eur", "£", "gbp", "billion", "million", "thousand", "from", "base of", "prior"])
+                and fact.get("normalized_value") is not None
+            )
 
             if unnamed_entity or is_relative_temp or missing_baseline:
                 issues = []
                 if unnamed_entity:
-                    issues.append("unnamed entity ('newly formed regional subsidiary')")
+                    issues.append(f"unnamed/underspecified legal entity referent ('{fact.get('subject', 'entity')}')")
                 if missing_baseline:
-                    issues.append("percentage growth lacking baseline capex denominator")
+                    issues.append("percentage growth delta lacking baseline denominator")
                 if is_relative_temp:
-                    issues.append("relative timeframe ('coming cycle') not anchored to a fiscal calendar")
+                    issues.append("relative temporal qualifier not anchored to a fiscal year or calendar period")
 
                 reasoning = (
                     f"Extraction & Grounding Flag: The statement suffers from ambiguous referents and underspecified boundaries: "
@@ -173,8 +185,8 @@ class RelationshipEngine:
                 )
 
                 fix = (
-                    "Enable cross-sentence coreference resolution to link 'the newly formed regional subsidiary' to its legal entity; "
-                    "anchor relative temporal qualifiers against document metadata; flag quantitative percentage deltas lacking baseline denominators."
+                    "Enable cross-sentence coreference resolution to link ambiguous referents to their parent legal entity; "
+                    "anchor relative temporal qualifiers against document metadata; flag percentage deltas lacking baseline denominators."
                 )
 
                 return {
@@ -186,38 +198,76 @@ class RelationshipEngine:
 
     @classmethod
     def _is_same_entity(cls, fact_a: Dict[str, Any], fact_b: Dict[str, Any]) -> bool:
+        import re
         e1 = fact_a.get("entity_id")
         e2 = fact_b.get("entity_id")
-        if e1 and e2 and e1 == e2:
+        if e1 and e2 and e1 == e2 and e1 != "ENT-000":
             return True
             
-        s1 = fact_a.get("subject", "").lower()
-        s2 = fact_b.get("subject", "").lower()
+        s1 = fact_a.get("subject", "").lower().strip()
+        s2 = fact_b.get("subject", "").lower().strip()
+        if not s1 or not s2:
+            return False
         if s1 == s2:
             return True
-            
-        if ("cloud" in s1 and "cloud" in s2):
+
+        from backend.app.pipeline.entity_resolution import EntityResolutionEngine
+        norm1 = EntityResolutionEngine.normalize_entity_name(s1)
+        norm2 = EntityResolutionEngine.normalize_entity_name(s2)
+        if norm1 == norm2 and norm1 != "":
             return True
-        if any(w in s1 for w in ["headcount", "employee", "workforce", "staff", "company", "entity"]) and any(w in s2 for w in ["headcount", "employee", "workforce", "staff", "company", "entity"]):
+
+        # Token set overlap
+        tokens1 = set(re.findall(r'\w+', norm1)) - {"company", "corp", "corporation", "inc", "ltd", "the", "group", "holdings", "our", "business", "segment", "unit"}
+        tokens2 = set(re.findall(r'\w+', norm2)) - {"company", "corp", "corporation", "inc", "ltd", "the", "group", "holdings", "our", "business", "segment", "unit"}
+        if tokens1 and tokens2:
+            if tokens1.issubset(tokens2) or tokens2.issubset(tokens1):
+                return True
+            overlap = len(tokens1 & tokens2) / len(tokens1 | tokens2)
+            if overlap >= 0.5:
+                return True
+
+        if any(w in s1 for w in ["headcount", "employee", "workforce", "staff", "personnel"]) and any(w in s2 for w in ["headcount", "employee", "workforce", "staff", "personnel"]):
             return True
-        if any(w in s1 for w in ["company", "abc corporation", "corporation"]) and any(w in s2 for w in ["company", "abc corporation", "corporation"]):
+        if any(w in s1 for w in ["cloud", "infrastructure", "software", "operating margin"]) and any(w in s2 for w in ["cloud", "infrastructure", "software", "operating margin"]):
             return True
+        if any(w in s1 for w in ["company", "corporation", "enterprise", "firm", "group"]) and any(w in s2 for w in ["company", "corporation", "enterprise", "firm", "group"]):
+            return True
+
             
         return False
 
     @classmethod
     def _is_same_metric(cls, fact_a: Dict[str, Any], fact_b: Dict[str, Any]) -> bool:
-        p1 = fact_a.get("predicate", "").lower()
-        p2 = fact_b.get("predicate", "").lower()
+        import re
+        p1 = fact_a.get("predicate", "").lower().strip()
+        p2 = fact_b.get("predicate", "").lower().strip()
         if p1 == p2:
             return True
-        if ("revenue" in p1 and "revenue" in p2) or ("growth" in p1 and "growth" in p2):
+
+        def get_core_metric(p):
+            if "margin" in p: return "margin"
+            if "revenue" in p or "sales" in p or "turnover" in p or "business" in p: return "revenue"
+            if "headcount" in p or "employee" in p or "workforce" in p or "staff" in p: return "headcount"
+            if "income" in p or "profit" in p or "loss" in p or "ebit" in p: return "profit"
+            if "capex" in p or "capital" in p: return "capex"
+            if "growth" in p or "expansion" in p: return "growth"
+            if "eps" in p or "per share" in p: return "eps"
+            if "deliver" in p or "volume" in p or "unit" in p: return "volume"
+            return p
+
+        c1 = get_core_metric(p1)
+        c2 = get_core_metric(p2)
+        if c1 == c2 and c1 != "":
             return True
-        if ("headcount" in p1 or "employee" in p1) and ("headcount" in p2 or "employee" in p2):
+
+        tokens1 = set(re.findall(r'\w+', p1)) - {"the", "a", "an", "and", "of", "in", "for", "our", "total", "annual", "reported"}
+        tokens2 = set(re.findall(r'\w+', p2)) - {"the", "a", "an", "and", "of", "in", "for", "our", "total", "annual", "reported"}
+        if tokens1 and tokens2 and len(tokens1 & tokens2) / len(tokens1 | tokens2) >= 0.5:
             return True
-        if "operating margin" in p1 and "operating margin" in p2:
-            return True
+
         return False
+
 
     @classmethod
     def _compare_temporal_context(cls, fact_a: Dict[str, Any], fact_b: Dict[str, Any]) -> Dict[str, Any]:

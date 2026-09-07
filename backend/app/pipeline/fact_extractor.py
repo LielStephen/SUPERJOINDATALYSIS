@@ -168,36 +168,53 @@ class FactExtractionEngine:
         
         num_ents = [e for e in ents if e.label_ in ["MONEY", "PERCENT", "QUANTITY", "CARDINAL"]]
         org_ents = [e for e in ents if e.label_ in ["ORG", "GPE", "PERSON"]]
+        default_subj = org_ents[0].text if org_ents else "Corporate Entity"
 
-        if num_ents:
-            val_ent = num_ents[0]
-            subj = org_ents[0].text if org_ents else "Corporate Entity"
-            
+        for val_ent in num_ents:
+            # Filter out bare single digits or isolated ordinal years
+            raw_val = val_ent.text.strip()
+            if len(raw_val) == 4 and raw_val.startswith(("19", "20")):
+                continue  # likely a year, not a metric
+            if len(raw_val) < 2 and not raw_val.isdigit():
+                continue
+
+            # Determine best predicate from sentence noun chunks or tokens near the entity
             pred = "reported metric"
-            if "operating margin" in sent_text.lower() or "margin" in sent_text.lower():
-                pred = "operating margin"
-            else:
+            found_pred = False
+            for chunk in sent_spacy.noun_chunks:
+                if val_ent.start >= chunk.start and val_ent.end <= chunk.end:
+                    clean_chunk = re.sub(re.escape(val_ent.text), '', chunk.text).strip()
+                    if clean_chunk and len(clean_chunk) > 2:
+                        pred = clean_chunk
+                        found_pred = True
+                        break
+                elif chunk.end <= val_ent.start:
+                    pred = chunk.text
+                    found_pred = True
+
+            if not found_pred:
                 for token in sent_spacy:
-                    if token.pos_ in ["VERB", "NOUN"] and token.dep_ in ["ROOT", "dobj", "nsubj"]:
-                        if token.text.lower() not in ["was", "is", "were", "are", "reached", "stood"]:
+                    if token.pos_ in ["NOUN"] and token.dep_ in ["ROOT", "dobj", "pobj", "attr"]:
+                        if token.text.lower() not in ["quarter", "year", "results", "figure", "table", "december"]:
                             pred = token.text.lower()
                             break
 
             fact_type = "NUMERICAL"
-            if val_ent.label_ == "MONEY":
+            if val_ent.label_ == "MONEY" or any(c in raw_val for c in ["$", "€", "£", "₹", "USD", "EUR", "billion", "million"]):
                 fact_type = "CURRENCY"
-            elif val_ent.label_ == "PERCENT":
+            elif val_ent.label_ == "PERCENT" or "%" in raw_val or "percent" in raw_val.lower():
                 fact_type = "PERCENTAGE"
 
             results.append({
-                "subject": subj,
-                "predicate": pred,
-                "raw_value": val_ent.text,
+                "subject": default_subj,
+                "predicate": pred.strip(),
+                "raw_value": raw_val,
                 "fact_type": fact_type,
-                "confidence": 0.85
+                "confidence": 0.88
             })
             
         return results
+
 
     @classmethod
     def _build_fact_dict(
