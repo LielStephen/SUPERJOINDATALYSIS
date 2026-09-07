@@ -54,30 +54,35 @@ def run_local_pipeline(uploaded_files):
             with open(file_path, "wb") as f:
                 f.write(uf.getvalue())
 
-            page_count, pages_blocks = PDFParser.parse_pdf(file_path)
+            doc_id = f"DOC-{uuid.uuid4().hex[:6].upper()}"
+            page_count, pages_data = PDFParser.parse_pdf(file_path)
 
-            for page_dict in pages_blocks:
-                p_num = page_dict["page_number"]
-                p_blocks = page_dict["blocks"]
-                extracted = FactExtractionEngine.extract_facts_from_page(uf.name, p_num, p_blocks)
-                for item in extracted:
-                    norm = FactNormalizer.normalize_fact(item)
-                    norm["source_doc"] = uf.name
-                    all_facts.append(norm)
+            extracted = FactExtractionEngine.extract_facts_from_pages(
+                doc_id=doc_id,
+                filename=uf.name,
+                pages=pages_data
+            )
+            for fdict in extracted:
+                ev = fdict.get("evidence", {})
+                fdict["source_doc"] = ev.get("filename", uf.name)
+                fdict["statement"] = f"{fdict.get('subject', '')} {fdict.get('predicate', '')} {fdict.get('raw_value', '')}".strip()
+                fdict["fact_id"] = fdict.get("id", f"F-{uuid.uuid4().hex[:6].upper()}")
+                fdict["verbatim_quote"] = ev.get("source_text", fdict.get("statement", ""))
+                all_facts.append(fdict)
 
     entity_engine.resolve_entities(all_facts)
 
     for f in all_facts:
-        norm_ent = entity_engine.get_canonical_name(f.get("entity", ""))
+        norm_ent = entity_engine.get_canonical_name(f.get("subject", f.get("entity", "")))
         f["entity"] = norm_ent
-        f["fact_id"] = f.get("id", f"FACT-{uuid.uuid4().hex[:6].upper()}")
-        if "verbatim_quote" not in f:
-            f["verbatim_quote"] = f.get("evidence_quote", f.get("statement", ""))
+        if "statement" not in f or not f["statement"]:
+            f["statement"] = f"{f.get('subject', '')} {f.get('predicate', '')} {f.get('raw_value', '')}".strip()
 
     candidate_pairs = CandidateFactMatcher.find_candidate_pairs(all_facts)
     relationships = RelationshipEngine.evaluate_pairs(candidate_pairs)
 
     return all_facts, relationships
+
 
 
 # Sidebar
