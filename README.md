@@ -24,8 +24,7 @@ Compiled and verified with **[Archify](https://github.com/tt-a1i/archify)** usin
 ![Fact Knowledge Layer Workflow](workflow.svg)
 
 * **Interactive Signal-Flow Player**: [`workflow.html`](workflow.html) *(with step-by-step chapter animation, node tracing, and dark/light themes)*
-* **Component Architecture Map**: [`architecture.html`](architecture.html)
-* **Typed IR Specifications**: [`workflow.json`](workflow.json) and [`architecture.json`](architecture.json)
+* **Architecture Specification**: [`workflow.json`](workflow.json)
 
 ```mermaid
 flowchart LR
