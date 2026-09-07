@@ -1,3 +1,14 @@
+---
+title: Fact Knowledge Layer
+emoji: 🔬
+colorFrom: indigo
+colorTo: pink
+sdk: streamlit
+sdk_version: 1.43.0
+app_file: app.py
+pinned: false
+---
+
 # Fact Knowledge Layer: Multi-Document Factual Analysis Engine
 
 An evidence-based factual extraction and cross-referencing system built with Python, Streamlit, and the official Google GenAI SDK (`google-genai`).
