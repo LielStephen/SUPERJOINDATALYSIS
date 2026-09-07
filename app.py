@@ -13,24 +13,188 @@ from backend.app.pipeline.relationship_engine import RelationshipEngine
 from sample_data import SAMPLE_FACTS, SAMPLE_RELATIONSHIPS
 
 st.set_page_config(
-    page_title="Fact Knowledge Layer",
+    page_title="Fact Knowledge Layer | Document Intelligence",
     page_icon="⚖️",
     layout="wide",
     initial_sidebar_state="expanded",
 )
 
-# Custom CSS for dark glassmorphism aesthetic
+# Premium Dark Glassmorphic Design System
 st.markdown(
     """
     <style>
-    .main { background-color: #0b0f19; color: #e6edf3; }
-    .stApp { background-color: #0b0f19; }
-    .css-1d37w0e { background-color: #161b22; }
-    .metric-strip { display: flex; gap: 1rem; margin-bottom: 1.5rem; flex-wrap: wrap; }
-    .metric-box { background: #161b22; border: 1px solid #30363d; border-radius: 8px; padding: 1rem; flex: 1; min-width: 140px; text-align: center; }
-    .metric-value { font-size: 1.8rem; font-weight: 700; margin: 0; }
-    .metric-label { font-size: 0.85rem; color: #8b949e; margin: 0; }
-    .empty-state { text-align: center; padding: 3rem 1rem; background: #161b22; border: 1px solid #30363d; border-radius: 12px; margin-bottom: 2rem; }
+    @import url('https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:wght@300;400;500;600;700;800&family=JetBrains+Mono:wght@400;500;600&display=swap');
+
+    html, body, [class*="css"] {
+        font-family: 'Plus Jakarta Sans', sans-serif;
+    }
+
+    .stApp {
+        background: radial-gradient(circle at 15% 15%, rgba(14, 25, 45, 0.95) 0%, rgba(7, 11, 20, 1) 100%);
+        color: #f1f5f9;
+    }
+
+    /* Sidebar Glassmorphism */
+    section[data-testid="stSidebar"] {
+        background: rgba(13, 19, 33, 0.75) !important;
+        backdrop-filter: blur(16px);
+        -webkit-backdrop-filter: blur(16px);
+        border-right: 1px solid rgba(255, 255, 255, 0.08);
+    }
+
+    /* Custom Header Badges */
+    .hero-container {
+        background: linear-gradient(135deg, rgba(30, 41, 59, 0.45) 0%, rgba(15, 23, 42, 0.6) 100%);
+        backdrop-filter: blur(12px);
+        border: 1px solid rgba(255, 255, 255, 0.09);
+        border-radius: 16px;
+        padding: 1.8rem 2rem;
+        margin-bottom: 2rem;
+        box-shadow: 0 8px 32px 0 rgba(0, 0, 0, 0.37);
+    }
+    .hero-title {
+        font-size: 2rem;
+        font-weight: 800;
+        background: linear-gradient(90deg, #38bdf8 0%, #818cf8 50%, #c084fc 100%);
+        -webkit-background-clip: text;
+        -webkit-text-fill-color: transparent;
+        margin: 0 0 0.5rem 0;
+        letter-spacing: -0.02em;
+    }
+    .hero-subtitle {
+        color: #94a3b8;
+        font-size: 0.95rem;
+        line-height: 1.6;
+        margin: 0 0 1rem 0;
+    }
+    .badge-pill {
+        display: inline-flex;
+        align-items: center;
+        gap: 6px;
+        font-size: 0.75rem;
+        font-weight: 600;
+        padding: 4px 10px;
+        border-radius: 9999px;
+        background: rgba(56, 189, 248, 0.12);
+        color: #38bdf8;
+        border: 1px solid rgba(56, 189, 248, 0.25);
+        margin-right: 8px;
+    }
+
+    /* Metric Counters */
+    .metric-grid {
+        display: grid;
+        grid-template-columns: repeat(auto-fit, minmax(160px, 1fr));
+        gap: 1rem;
+        margin-bottom: 2rem;
+    }
+    .metric-card {
+        background: rgba(19, 27, 46, 0.55);
+        backdrop-filter: blur(12px);
+        border: 1px solid rgba(255, 255, 255, 0.07);
+        border-radius: 14px;
+        padding: 1.2rem;
+        text-align: center;
+        transition: all 0.25s cubic-bezier(0.4, 0, 0.2, 1);
+        box-shadow: 0 4px 20px rgba(0, 0, 0, 0.2);
+    }
+    .metric-card:hover {
+        transform: translateY(-3px);
+        border-color: rgba(56, 189, 248, 0.35);
+        box-shadow: 0 10px 25px rgba(56, 189, 248, 0.12);
+    }
+    .metric-num {
+        font-size: 2.2rem;
+        font-weight: 800;
+        margin: 0;
+        font-family: 'Plus Jakarta Sans', sans-serif;
+    }
+    .metric-label {
+        font-size: 0.8rem;
+        font-weight: 600;
+        text-transform: uppercase;
+        letter-spacing: 0.05em;
+        color: #94a3b8;
+        margin-top: 0.3rem;
+    }
+
+    /* Relationship Glass Cards */
+    .rel-card {
+        background: rgba(15, 23, 42, 0.65);
+        backdrop-filter: blur(14px);
+        border-radius: 14px;
+        padding: 1.4rem;
+        margin-bottom: 1.2rem;
+        border: 1px solid rgba(255, 255, 255, 0.08);
+        box-shadow: 0 4px 24px rgba(0, 0, 0, 0.25);
+        transition: all 0.2s ease-in-out;
+    }
+    .rel-card:hover {
+        border-color: rgba(255, 255, 255, 0.16);
+    }
+    .rel-card-corr { border-left: 4px solid #10b981; }
+    .rel-card-contra { border-left: 4px solid #ef4444; }
+    .rel-card-recon { border-left: 4px solid #38bdf8; }
+    .rel-card-audit { border-left: 4px solid #f59e0b; }
+
+    .claim-box {
+        background: rgba(30, 41, 59, 0.4);
+        border: 1px solid rgba(255, 255, 255, 0.05);
+        border-radius: 8px;
+        padding: 0.85rem 1rem;
+        margin-top: 0.6rem;
+    }
+    .doc-tag {
+        font-size: 0.72rem;
+        font-weight: 600;
+        font-family: 'JetBrains Mono', monospace;
+        color: #94a3b8;
+        display: inline-block;
+        margin-bottom: 0.3rem;
+    }
+    .quote-text {
+        font-size: 0.88rem;
+        color: #cbd5e1;
+        font-style: italic;
+        line-height: 1.5;
+    }
+    .reasoning-box {
+        background: rgba(15, 23, 42, 0.5);
+        border-left: 2px solid rgba(148, 163, 184, 0.3);
+        padding: 0.75rem 1rem;
+        margin-top: 0.8rem;
+        border-radius: 0 8px 8px 0;
+        font-size: 0.88rem;
+        color: #e2e8f0;
+        line-height: 1.55;
+    }
+    .diagnostic-fix {
+        background: rgba(245, 158, 11, 0.08);
+        border: 1px solid rgba(245, 158, 11, 0.25);
+        color: #fbbf24;
+        border-radius: 8px;
+        padding: 0.8rem 1rem;
+        margin-top: 0.8rem;
+        font-size: 0.85rem;
+    }
+
+    /* Fact Table Cards */
+    .fact-card {
+        background: rgba(20, 29, 49, 0.45);
+        border: 1px solid rgba(255, 255, 255, 0.06);
+        border-radius: 10px;
+        padding: 1rem 1.2rem;
+        margin-bottom: 0.8rem;
+    }
+    .fact-id {
+        font-family: 'JetBrains Mono', monospace;
+        font-size: 0.75rem;
+        font-weight: 700;
+        color: #38bdf8;
+        background: rgba(56, 189, 248, 0.1);
+        padding: 2px 6px;
+        border-radius: 4px;
+    }
     </style>
     """,
     unsafe_allow_html=True,
@@ -50,15 +214,15 @@ def run_local_pipeline(uploaded_files, progress_bar=None, status_container=None)
     total_docs = len(uploaded_files)
 
     if progress_bar and status_container:
-        progress_bar.progress(5, text="📁 Preparing local temporary workspace...")
-        status_container.info("📁 Initializing local in-memory extraction engine...")
+        progress_bar.progress(5, text="📁 Preparing in-memory workspace...")
+        status_container.info("📁 Initializing local PyMuPDF extraction engine...")
 
     with tempfile.TemporaryDirectory() as tmp_dir:
         for idx, uf in enumerate(uploaded_files):
-            step_pct = int(10 + (idx / total_docs) * 40)
+            step_pct = int(10 + (idx / total_docs) * 45)
             if progress_bar and status_container:
                 progress_bar.progress(step_pct, text=f"📄 Ingesting & parsing {uf.name} ({idx+1}/{total_docs})...")
-                status_container.info(f"📄 Parsing layout & text blocks from `{uf.name}`...")
+                status_container.info(f"📄 Parsing layout blocks & bounding boxes from `{uf.name}`...")
 
             file_path = os.path.join(tmp_dir, uf.name)
             with open(file_path, "wb") as f:
@@ -81,8 +245,8 @@ def run_local_pipeline(uploaded_files, progress_bar=None, status_container=None)
                 all_facts.append(fdict)
 
     if progress_bar and status_container:
-        progress_bar.progress(60, text="🧩 Resolving and clustering cross-document entities...")
-        status_container.info(f"🧩 Disambiguating {len(all_facts)} extracted facts across corporate entities...")
+        progress_bar.progress(65, text="🧩 Resolving cross-document entity clusters...")
+        status_container.info(f"🧩 Disambiguating {len(all_facts)} extracted claims across legal entities...")
 
     subject_entity_map = entity_engine.resolve_entities(all_facts)
 
@@ -93,52 +257,86 @@ def run_local_pipeline(uploaded_files, progress_bar=None, status_container=None)
             f["statement"] = f"{f.get('subject', '')} {f.get('predicate', '')} {f.get('raw_value', '')}".strip()
 
     if progress_bar and status_container:
-        progress_bar.progress(80, text="⚖️ Matching candidate pairs & cross-document reasoning...")
-        status_container.info("⚖️ Evaluating cross-document corroborations, contradictions & scope differences...")
+        progress_bar.progress(85, text="⚖️ Multi-dimensional cross-document reasoning...")
+        status_container.info("⚖️ Evaluating corroborations, numerical disputes & accounting reconciliations...")
 
     candidate_pairs = CandidateFactMatcher.find_candidate_pairs(all_facts)
     relationships = RelationshipEngine.evaluate_pairs(candidate_pairs)
 
     if progress_bar and status_container:
         progress_bar.progress(100, text="✨ Analysis completed successfully!")
-        status_container.success(f"✅ Finished! Found {len(all_facts)} discrete facts and {len(relationships)} cross-document relationships.")
+        status_container.success(f"✅ Extracted {len(all_facts)} discrete facts and {len(relationships)} cross-document relationships.")
 
     return all_facts, relationships
 
 
-
-# Sidebar
+# Sidebar Navigation & Upload
 with st.sidebar:
-    st.title("⚖️ Fact Knowledge Layer")
-    st.caption("100% Self-Contained Local Processing Engine (Zero External LLM APIs)")
+    st.markdown(
+        """
+        <div style="display:flex; align-items:center; gap:10px; margin-bottom:1rem;">
+            <span style="font-size:1.8rem;">⚖️</span>
+            <div>
+                <h3 style="margin:0; font-size:1.15rem; color:#f8fafc; font-weight:700;">Fact Knowledge Layer</h3>
+                <span style="font-size:0.75rem; color:#38bdf8; font-weight:600;">100% Local Intelligence</span>
+            </div>
+        </div>
+        """,
+        unsafe_allow_html=True
+    )
 
+    st.caption("Self-contained verification engine with zero external LLM dependencies.")
     st.markdown("---")
-    st.subheader("1. Document Ingestion")
-
+    
+    st.subheader("📁 Document Ingestion")
     uploaded_files = st.file_uploader(
-        "Upload PDF Corporate Disclosures",
+        "Upload Corporate PDFs",
         type=["pdf"],
         accept_multiple_files=True,
-        help="Select multi-page PDFs to run local fact extraction & verification.",
+        help="Upload 2 or more PDFs (Earnings releases, ESG reports, 10-Ks, strategy memos) to verify.",
     )
 
     st.markdown("---")
-
     run_analysis = st.button("🚀 Run Local Pipeline", type="primary", use_container_width=True)
 
-    if st.button("🗑️ Reset Engine", use_container_width=True):
+    if st.button("🗑️ Reset Workspace", use_container_width=True):
         st.session_state.facts = []
         st.session_state.relationships = []
         st.session_state.analysis_complete = False
         st.rerun()
 
-# Main Header
-st.title("Multi-Document Factual Verification Engine")
-st.caption("Page-aware local PDF extraction, metric normalization, entity resolution, candidate matching, and relationship reasoning.")
+    st.markdown(
+        """
+        <div style="margin-top:2rem; padding:0.8rem; background:rgba(255,255,255,0.03); border-radius:8px; font-size:0.75rem; color:#94a3b8; line-height:1.5;">
+            🔒 <strong>Zero Data Leakage</strong><br>
+            All PDF ingestion, regex tokenization, spaCy NLP, and reconciliation execute strictly in-memory.
+        </div>
+        """,
+        unsafe_allow_html=True
+    )
+
+# Main Hero Header
+st.markdown(
+    """
+    <div class="hero-container">
+        <h1 class="hero-title">Multi-Document Factual Verification Engine</h1>
+        <p class="hero-subtitle">
+            Extracts discrete, verifiable facts from multi-page PDFs with exact bounding-box quotes. Disambiguates corporate entities, aligns accounting definitions, and flags genuine numerical contradictions.
+        </p>
+        <div>
+            <span class="badge-pill">⚡ 100% In-Memory</span>
+            <span class="badge-pill">🛡️ Zero LLM Hallucination</span>
+            <span class="badge-pill">🔬 Evidence Grounded</span>
+            <span class="badge-pill">📐 Deterministic Logic</span>
+        </div>
+    </div>
+    """,
+    unsafe_allow_html=True,
+)
 
 if run_analysis:
     if not uploaded_files or len(uploaded_files) < 2:
-        st.error("Please upload at least 2 PDF documents to run cross-document analysis.")
+        st.error("⚠️ Please upload at least 2 PDF documents to perform cross-document factual reconciliation.")
     else:
         prog_bar = st.progress(0, text="🚀 Starting local pipeline analysis...")
         status_box = st.empty()
@@ -156,39 +354,37 @@ if run_analysis:
 
 if not st.session_state.analysis_complete:
     st.markdown(
-        """<div class="empty-state">
-            <h2 style="color:#ccd6f6; font-weight:600; margin-bottom:0.5rem;">Multi-Document Factual Verification Engine</h2>
-            <p style="color:#8892b0; max-width:680px; margin:0 auto 1.8rem auto; font-size:1rem; line-height:1.6;">
-                Upload two or more corporate disclosures, research reports, or financial filings to extract atomic verifiable facts and cross-examine them across documents without hallucination.
-            </p>
-        </div>""",
-        unsafe_allow_html=True,
-    )
-
-    st.markdown(
-        """<div style="display:grid; grid-template-columns:repeat(auto-fit, minmax(260px, 1fr)); gap:1rem; margin-bottom:2rem;">
-            <div style="background:#161b22; border:1px solid #30363d; border-radius:10px; padding:1.2rem;">
-                <span style="font-size:1.5rem;">📄</span>
-                <h4 style="color:#f0f6fc; margin:0.5rem 0 0.3rem 0; font-size:1.05rem;">1. Local In-Memory Extraction</h4>
-                <p style="color:#8b949e; font-size:0.85rem; line-height:1.5; margin:0;">Parses raw text from multi-page PDFs locally, binding each discrete fact to its source document and exact verbatim quote.</p>
+        """
+        <div style="display:grid; grid-template-columns:repeat(auto-fit, minmax(260px, 1fr)); gap:1.2rem; margin-bottom:2.5rem;">
+            <div class="rel-card rel-card-recon">
+                <span style="font-size:1.6rem;">📄</span>
+                <h4 style="color:#f8fafc; margin:0.5rem 0 0.3rem 0; font-size:1.05rem; font-weight:700;">1. Page-Aware PDF Parsing</h4>
+                <p style="color:#94a3b8; font-size:0.85rem; line-height:1.55; margin:0;">
+                    Parses layout blocks, paragraphs, and coordinates using PyMuPDF to anchor every extracted metric directly to its source sentence.
+                </p>
             </div>
-            <div style="background:#161b22; border:1px solid #30363d; border-radius:10px; padding:1.2rem;">
-                <span style="font-size:1.5rem;">🔬</span>
-                <h4 style="color:#f0f6fc; margin:0.5rem 0 0.3rem 0; font-size:1.05rem;">2. Cross-Document Reasoning</h4>
-                <p style="color:#8b949e; font-size:0.85rem; line-height:1.5; margin:0;">Examines claims across files to isolate corroborations, detect genuine disputes, and reconcile differences in timeframe or scope.</p>
+            <div class="rel-card rel-card-corr">
+                <span style="font-size:1.6rem;">🔬</span>
+                <h4 style="color:#f8fafc; margin:0.5rem 0 0.3rem 0; font-size:1.05rem; font-weight:700;">2. Entity Resolution & Normalization</h4>
+                <p style="color:#94a3b8; font-size:0.85rem; line-height:1.55; margin:0;">
+                    Disambiguates corporate entities and normalizes currencies ($4.2B → 4,200,000,000 USD), percentages, and fiscal calendars (FY23 vs Q4).
+                </p>
             </div>
-            <div style="background:#161b22; border:1px solid #30363d; border-radius:10px; padding:1.2rem;">
-                <span style="font-size:1.5rem;">⚖️</span>
-                <h4 style="color:#f0f6fc; margin:0.5rem 0 0.3rem 0; font-size:1.05rem;">3. 4-Case Evidence Review</h4>
-                <p style="color:#8b949e; font-size:0.85rem; line-height:1.5; margin:0;">Categorizes relationships into Corroborations, Contradictions, Contextual Reconciliations, and Audit Failures with diagnostic fixes.</p>
+            <div class="rel-card rel-card-contra">
+                <span style="font-size:1.6rem;">⚖️</span>
+                <h4 style="color:#f8fafc; margin:0.5rem 0 0.3rem 0; font-size:1.05rem; font-weight:700;">3. 4-Case Cross-Examination</h4>
+                <p style="color:#94a3b8; font-size:0.85rem; line-height:1.55; margin:0;">
+                    Evaluates multi-source claims into Corroborations, Genuine Contradictions, Contextual Reconciliations, and Extraction Failures.
+                </p>
             </div>
-        </div>""",
+        </div>
+        """,
         unsafe_allow_html=True,
     )
 
     col_a, col_b, col_c = st.columns([1, 2, 1])
     with col_b:
-        if st.button("⚡ Load Demo Evaluation Dataset (Zero Setup)", use_container_width=True, type="primary"):
+        if st.button("⚡ Load Benchmark Evaluation Dataset (Instant Demo)", use_container_width=True, type="primary"):
             st.session_state.facts = list(SAMPLE_FACTS)
             st.session_state.relationships = list(SAMPLE_RELATIONSHIPS)
             st.session_state.analysis_complete = True
@@ -196,6 +392,8 @@ if not st.session_state.analysis_complete:
 
     st.stop()
 
+
+# Computed Relationship Groups
 facts = st.session_state.facts
 relationships = st.session_state.relationships
 
@@ -203,68 +401,168 @@ corroborations = [r for r in relationships if r.get("category") in ("Corroborati
 contradictions = [r for r in relationships if r.get("category") in ("Contradiction", "CONTRADICTS")]
 reconciliations = [r for r in relationships if r.get("category") in ("Contextual Reconciliation", "CONTEXTUALIZES", "TEMPORAL_CHANGE")]
 failures = [r for r in relationships if r.get("category") in ("Extraction Failure", "UNCERTAIN", "Uncertain")]
-
-
 source_docs = set(f.get("source_doc", "") for f in facts)
 
+# Metric Summary Strip
 st.markdown(
-    f"""<div class="metric-strip">
-        <div class="metric-box">
-            <p class="metric-value" style="color:#64ffda;">{len(facts)}</p>
+    f"""
+    <div class="metric-grid">
+        <div class="metric-card">
+            <p class="metric-num" style="color:#38bdf8;">{len(facts)}</p>
             <p class="metric-label">Facts Extracted</p>
         </div>
-        <div class="metric-box">
-            <p class="metric-value" style="color:#48b1bf;">{len(source_docs)}</p>
+        <div class="metric-card">
+            <p class="metric-num" style="color:#818cf8;">{len(source_docs)}</p>
             <p class="metric-label">Source Documents</p>
         </div>
-        <div class="metric-box">
-            <p class="metric-value" style="color:#4ade80;">{len(corroborations)}</p>
+        <div class="metric-card">
+            <p class="metric-num" style="color:#10b981;">{len(corroborations)}</p>
             <p class="metric-label">Corroborations</p>
         </div>
-        <div class="metric-box">
-            <p class="metric-value" style="color:#e94560;">{len(contradictions)}</p>
+        <div class="metric-card">
+            <p class="metric-num" style="color:#ef4444;">{len(contradictions)}</p>
             <p class="metric-label">Contradictions</p>
         </div>
-        <div class="metric-box">
-            <p class="metric-value" style="color:#48b1bf;">{len(reconciliations)}</p>
+        <div class="metric-card">
+            <p class="metric-num" style="color:#06b6d4;">{len(reconciliations)}</p>
             <p class="metric-label">Reconciliations</p>
         </div>
-        <div class="metric-box">
-            <p class="metric-value" style="color:#e6a817;">{len(failures)}</p>
+        <div class="metric-card">
+            <p class="metric-num" style="color:#f59e0b;">{len(failures)}</p>
             <p class="metric-label">Audit Flags</p>
         </div>
-    </div>""",
+    </div>
+    """,
     unsafe_allow_html=True,
 )
 
-tab_corr, tab_contra, tab_recon, tab_audit = st.tabs([
+# Relationship Explorer Tabs
+tab_corr, tab_contra, tab_recon, tab_audit, tab_facts = st.tabs([
     f"✅ Corroborated Evidence ({len(corroborations)})",
     f"⚔️ Genuine Contradictions ({len(contradictions)})",
     f"🔄 Contextual Reconciliations ({len(reconciliations)})",
     f"🔍 Audit & Failures ({len(failures)})",
+    f"📊 Fact Registry ({len(facts)})"
 ])
 
+
+def render_relationship_cards(items, card_type="corr"):
+    if not items:
+        st.info("No relationships found in this category.")
+        return
+
+    for item in items:
+        rel_id = item.get("relationship_id") or item.get("id", "R-001")
+        category = item.get("category", "Analysis")
+        reasoning = item.get("reasoning", "")
+        diagnostic = item.get("diagnostic_fix")
+        claims = item.get("competing_claims", [])
+        quotes = item.get("source_quotes", [])
+        docs = item.get("source_docs", [])
+
+        st.markdown(
+            f"""
+            <div class="rel-card rel-card-{card_type}">
+                <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom:0.75rem;">
+                    <div>
+                        <span class="fact-id">{rel_id}</span>
+                        <strong style="margin-left:8px; font-size:1rem; color:#f8fafc;">{category}</strong>
+                    </div>
+                    <span style="font-size:0.75rem; color:#94a3b8; font-weight:600;">Confidence: {item.get('confidence', 0.95)*100:.0f}%</span>
+                </div>
+            """,
+            unsafe_allow_html=True
+        )
+
+        cols = st.columns(max(len(claims), 1))
+        for idx, col in enumerate(cols):
+            with col:
+                doc_name = docs[idx] if idx < len(docs) else "Document"
+                claim_text = claims[idx] if idx < len(claims) else "Extracted claim"
+                quote_text = quotes[idx] if idx < len(quotes) else ""
+
+                st.markdown(
+                    f"""
+                    <div class="claim-box">
+                        <span class="doc-tag">📄 {doc_name}</span>
+                        <div style="font-weight:600; font-size:0.92rem; color:#f1f5f9; margin-bottom:0.4rem;">{claim_text}</div>
+                        {f'<div class="quote-text">"{quote_text}"</div>' if quote_text else ''}
+                    </div>
+                    """,
+                    unsafe_allow_html=True
+                )
+
+        st.markdown(
+            f"""
+                <div class="reasoning-box">
+                    <strong>💡 Reconciliation Reasoning:</strong> {reasoning}
+                </div>
+                {f'<div class="diagnostic-fix"><strong>⚠️ Diagnostic Fix Action:</strong> {diagnostic}</div>' if diagnostic else ''}
+            </div>
+            """,
+            unsafe_allow_html=True
+        )
+
+
 with tab_corr:
-    st.json(corroborations)
+    st.caption("Multi-source claims that independently corroborate identical metrics, timeframes, and entities.")
+    render_relationship_cards(corroborations, card_type="corr")
 
 with tab_contra:
-    st.json(contradictions)
+    st.caption("Direct numerical or factual disputes across official corporate disclosures without scope justification.")
+    render_relationship_cards(contradictions, card_type="contra")
 
 with tab_recon:
-    st.json(reconciliations)
+    st.caption("Apparent variances fully reconciled by accounting standards (e.g. GAAP vs Non-GAAP) or timeframe differences.")
+    render_relationship_cards(reconciliations, card_type="recon")
 
 with tab_audit:
-    st.json(failures)
+    st.caption("Ambiguous claims flagged for human audit (unnamed legal entities, relative timeframes, missing denominators).")
+    render_relationship_cards(failures, card_type="audit")
 
+with tab_facts:
+    st.caption("Discrete, atomic extracted facts normalized into structured key-value entities.")
+    for f in facts:
+        fid = f.get("fact_id") or f.get("id", "F-001")
+        subj = f.get("subject", f.get("entity", "Corporate Entity"))
+        metric = f.get("raw_value") or f.get("metric_or_value", "")
+        pred = f.get("predicate", "statement")
+        src = f.get("source_doc", "")
+        quote = f.get("verbatim_quote") or f.get("evidence", {}).get("source_text", "")
+        temp = f.get("temporal_period", "")
+
+        st.markdown(
+            f"""
+            <div class="fact-card">
+                <div style="display:flex; justify-content:space-between; align-items:center;">
+                    <div>
+                        <span class="fact-id">{fid}</span>
+                        <strong style="margin-left:8px; color:#f8fafc; font-size:0.95rem;">{subj}</strong>
+                        <span style="color:#94a3b8; font-size:0.85rem; margin-left:6px;">— {pred}</span>
+                    </div>
+                    <div>
+                        <span style="font-weight:700; color:#38bdf8; font-size:1.05rem;">{metric}</span>
+                        {f'<span class="badge-pill" style="margin-left:6px;">{temp}</span>' if temp else ''}
+                    </div>
+                </div>
+                <div style="margin-top:0.5rem; display:flex; justify-content:space-between; align-items:flex-end;">
+                    <div style="color:#94a3b8; font-size:0.82rem; font-style:italic; max-width:80%;">
+                        "{quote}"
+                    </div>
+                    <span class="doc-tag">📄 {src}</span>
+                </div>
+            </div>
+            """,
+            unsafe_allow_html=True
+        )
+
+# Raw JSON Export Section
 st.markdown("---")
-with st.expander("📊 Full Fact Registry", expanded=False):
-    st.json(facts)
-
-with st.expander("🧾 Raw JSON Output & Export", expanded=False):
+with st.expander("🧾 Export Evaluation Artifacts (JSON)", expanded=False):
     export_col1, export_col2 = st.columns(2)
     with export_col1:
         st.download_button(
-            "📥 Download Facts JSON",
+            "📥 Download Fact Knowledge Registry (JSON)",
             data=json.dumps(facts, indent=2),
             file_name="extracted_facts.json",
             mime="application/json",
@@ -272,7 +570,7 @@ with st.expander("🧾 Raw JSON Output & Export", expanded=False):
         )
     with export_col2:
         st.download_button(
-            "📥 Download Cross-References JSON",
+            "📥 Download Cross-References (JSON)",
             data=json.dumps(relationships, indent=2),
             file_name="cross_references.json",
             mime="application/json",
