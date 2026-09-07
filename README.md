@@ -108,7 +108,35 @@ The application will start and automatically open at `http://localhost:8501`.
 SUPERJOINDATALYSIS/
 ├── app.py              # Complete Streamlit Fact Knowledge Layer application
 ├── requirements.txt    # Project Python dependencies
+├── Dockerfile          # Production Docker container configuration
+├── .dockerignore       # Docker build ignore rules
 ├── .env.example        # Environment variable template
 ├── .gitignore          # Git ignore rules for Python, cache, and secrets
 └── README.md           # Documentation and usage guide
 ```
+
+---
+
+## Deployment Options
+
+### Option 1: Streamlit Community Cloud (Recommended & Free)
+1. Push your repository to GitHub: `git push origin main`
+2. Go to [share.streamlit.io](https://share.streamlit.io) and sign in with GitHub.
+3. Click **New app**.
+4. Select Repository: `LielStephen/SUPERJOINDATALYSIS`, Branch: `main`, Main file path: `app.py`.
+5. Under **Advanced settings**, set `GEMINI_API_KEY = "your_key"` in Secrets.
+6. Click **Deploy**.
+
+### Option 2: Hugging Face Spaces (Free)
+1. Navigate to [huggingface.co/spaces](https://huggingface.co/spaces) and create a new space.
+2. Choose **Streamlit** as the Space SDK.
+3. Link your GitHub repository or push this repository directly to the Space remote.
+4. Add `GEMINI_API_KEY` under Space **Settings > Variables and secrets**.
+
+### Option 3: Docker / Cloud Run / Railway / Render
+Build and run locally or push the container:
+```bash
+docker build -t fact-knowledge-layer .
+docker run -p 8501:8501 -e GEMINI_API_KEY="your_api_key" fact-knowledge-layer
+```
+For Cloud Run, Railway, or Render, link this repository and configure `GEMINI_API_KEY` in the service environment variables.
