@@ -20,6 +20,12 @@ class EntityResolutionEngine:
         return clean.strip().lower()
 
     @classmethod
+    def get_canonical_name(cls, name: str) -> str:
+        """Returns canonical normalized entity name."""
+        return cls.normalize_entity_name(name) if name else ""
+
+
+    @classmethod
     def resolve_entities(cls, facts: List[Dict[str, Any]]) -> Dict[str, str]:
         """Maps extracted fact subject names to canonical Entity IDs."""
         subject_to_entity_id: Dict[str, str] = {}
