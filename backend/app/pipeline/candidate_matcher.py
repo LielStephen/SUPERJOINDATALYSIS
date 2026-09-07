@@ -14,7 +14,13 @@ class CandidateFactMatcher:
         predicate_buckets = defaultdict(list)
 
         for fact in facts:
-            pred_key = cls._get_predicate_key(fact["predicate"], fact["fact_type"], fact["raw_value"])
+            pred = fact.get("predicate", "")
+            ftype = fact.get("fact_type", "NUMERICAL")
+            rval = fact.get("raw_value", "")
+            fid = fact.get("id", fact.get("fact_id", ""))
+            if not pred and not rval:
+                continue  # Skip facts with no predicate and no value
+            pred_key = cls._get_predicate_key(pred, ftype, rval)
             predicate_buckets[pred_key].append(fact)
 
         for pred_key, bucket_facts in predicate_buckets.items():
@@ -23,14 +29,17 @@ class CandidateFactMatcher:
                     fact_a = bucket_facts[i]
                     fact_b = bucket_facts[j]
 
-                    if fact_a["id"] == fact_b["id"]:
+                    fid_a = fact_a.get("id", fact_a.get("fact_id", ""))
+                    fid_b = fact_b.get("id", fact_b.get("fact_id", ""))
+
+                    if fid_a and fid_b and fid_a == fid_b:
                         continue
 
                     # Must come from different documents
                     if fact_a.get("document_id") == fact_b.get("document_id"):
                         continue
 
-                    pair_key = tuple(sorted([fact_a["id"], fact_b["id"]]))
+                    pair_key = tuple(sorted([fid_a, fid_b]))
                     if pair_key in seen_pair_keys:
                         continue
 

@@ -355,12 +355,18 @@ if run_analysis:
         status_box = st.empty()
         try:
             extracted_facts, extracted_rels = run_local_pipeline(uploaded_files, progress_bar=prog_bar, status_container=status_box)
-            st.session_state.facts = extracted_facts
-            st.session_state.relationships = extracted_rels
-            st.session_state.dataset_label = f"Custom Upload ({len(uploaded_files)} PDFs)"
-            prog_bar.empty()
-            status_box.empty()
-            st.success(f"✅ Processed {len(uploaded_files)} documents! Extracted {len(extracted_facts)} facts & {len(extracted_rels)} cross-document relationships.")
+            if not extracted_facts:
+                prog_bar.empty()
+                status_box.empty()
+                st.warning("⚠️ No verifiable factual claims could be extracted from the uploaded PDFs. "
+                           "This engine works best with corporate disclosures containing numerical metrics "
+                           "(revenue, margins, headcount, growth rates). Try uploading earnings releases, "
+                           "10-K filings, or investor presentations.")
+            else:
+                st.session_state.facts = extracted_facts
+                st.session_state.relationships = extracted_rels
+                st.session_state.dataset_label = f"Custom Upload ({len(uploaded_files)} PDFs)"
+                st.rerun()
         except Exception as exc:
             prog_bar.empty()
             status_box.empty()

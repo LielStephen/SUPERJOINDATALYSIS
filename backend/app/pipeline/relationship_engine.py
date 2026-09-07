@@ -9,14 +9,20 @@ class RelationshipEngine:
     def analyze_pair(cls, fact_a: Dict[str, Any], fact_b: Dict[str, Any]) -> Dict[str, Any]:
         """Compares two facts on entity, metric, temporal, scope, and numeric dimensions."""
         
+        id_a = fact_a.get("id", fact_a.get("fact_id", "F-UNK"))
+        id_b = fact_b.get("id", fact_b.get("fact_id", "F-UNK"))
+        raw_val_a = fact_a.get("raw_value", "")
+        raw_val_b = fact_b.get("raw_value", "")
+        pred_a = fact_a.get("predicate", "")
+
         # 1. Check for Audit / Extraction Failure first
         failure_reason = cls._check_extraction_failure(fact_a, fact_b)
         if failure_reason:
             return {
                 "id": f"R-{uuid.uuid4().hex[:6].upper()}",
                 "category": "UNCERTAIN",
-                "fact_id_a": fact_a["id"],
-                "fact_id_b": fact_b["id"],
+                "fact_id_a": id_a,
+                "fact_id_b": id_b,
                 "confidence": 0.85,
                 "reasoning": failure_reason["reasoning"],
                 "diagnostic_fix": failure_reason["diagnostic_fix"],
@@ -36,20 +42,20 @@ class RelationshipEngine:
         # 2. Check for Contextual Difference (Accounting definition or Scope mismatch)
         if scope_comp["has_diff"]:
             reason = (
-                f"Apparent variance between {fact_a['raw_value']} ({doc_a_name}) and {fact_b['raw_value']} ({doc_b_name}) "
+                f"Apparent variance between {raw_val_a} ({doc_a_name}) and {raw_val_b} ({doc_b_name}) "
                 f"is fully reconciled by textual accounting/scope qualifiers: {scope_comp['explanation']}."
             )
             return {
                 "id": f"R-{uuid.uuid4().hex[:6].upper()}",
                 "category": "CONTEXTUALIZES",
-                "fact_id_a": fact_a["id"],
-                "fact_id_b": fact_b["id"],
+                "fact_id_a": id_a,
+                "fact_id_b": id_b,
                 "confidence": 0.95,
                 "reasoning": reason,
                 "diagnostic_fix": None,
                 "context_diffs": {
                     "scope_difference": scope_comp["explanation"],
-                    "metric": fact_a["predicate"]
+                    "metric": pred_a
                 }
             }
 
@@ -62,8 +68,8 @@ class RelationshipEngine:
             return {
                 "id": f"R-{uuid.uuid4().hex[:6].upper()}",
                 "category": cat,
-                "fact_id_a": fact_a["id"],
-                "fact_id_b": fact_b["id"],
+                "fact_id_a": id_a,
+                "fact_id_b": id_b,
                 "confidence": 0.92,
                 "reasoning": reason,
                 "diagnostic_fix": None,
@@ -77,13 +83,13 @@ class RelationshipEngine:
             if val_comp["is_equal"]:
                 reason = (
                     f"Both disclosures ({doc_a_name} and {doc_b_name}) independently confirm the identical "
-                    f"performance metric ({fact_a['raw_value']}) for the same reporting period ({temp_comp['period_a']})."
+                    f"performance metric ({raw_val_a}) for the same reporting period ({temp_comp['period_a']})."
                 )
                 return {
                     "id": f"R-{uuid.uuid4().hex[:6].upper()}",
                     "category": "CORROBORATES",
-                    "fact_id_a": fact_a["id"],
-                    "fact_id_b": fact_b["id"],
+                    "fact_id_a": id_a,
+                    "fact_id_b": id_b,
                     "confidence": 0.98,
                     "reasoning": reason,
                     "diagnostic_fix": None,
@@ -92,20 +98,20 @@ class RelationshipEngine:
             else:
                 reason = (
                     f"Direct numerical conflict between official corporate disclosures for the exact same reporting cutoff ({temp_comp['period_a']}). "
-                    f"{doc_a_name} reports {fact_a['raw_value']} while {doc_b_name} states {fact_b['raw_value']}. "
+                    f"{doc_a_name} reports {raw_val_a} while {doc_b_name} states {raw_val_b}. "
                     f"Neither text references adjustments or restructuring to justify the variance."
                 )
                 return {
                     "id": f"R-{uuid.uuid4().hex[:6].upper()}",
                     "category": "CONTRADICTS",
-                    "fact_id_a": fact_a["id"],
-                    "fact_id_b": fact_b["id"],
+                    "fact_id_a": id_a,
+                    "fact_id_b": id_b,
                     "confidence": 0.96,
                     "reasoning": reason,
                     "diagnostic_fix": None,
                     "context_diffs": {
-                        "value_a": fact_a["raw_value"],
-                        "value_b": fact_b["raw_value"],
+                        "value_a": raw_val_a,
+                        "value_b": raw_val_b,
                         "discrepancy": val_comp.get("delta_str")
                     }
                 }
@@ -113,8 +119,8 @@ class RelationshipEngine:
         return {
             "id": f"R-{uuid.uuid4().hex[:6].upper()}",
             "category": "UNCERTAIN",
-            "fact_id_a": fact_a["id"],
-            "fact_id_b": fact_b["id"],
+            "fact_id_a": id_a,
+            "fact_id_b": id_b,
             "confidence": 0.60,
             "reasoning": "Insufficient textual evidence to definitively prove corroboration or contradiction.",
             "diagnostic_fix": None,
