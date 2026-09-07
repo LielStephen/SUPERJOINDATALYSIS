@@ -97,7 +97,7 @@ class FactExtractionEngine:
                         bbox = block["bbox"]
                         break
 
-                matched_patterns = cls._apply_pattern_rules(sent_text)
+                matched_patterns = cls._apply_pattern_rules(sent, sent_text)
                 for item in matched_patterns:
                     fact_obj = cls._build_fact_dict(
                         doc_id=doc_id,
@@ -135,7 +135,7 @@ class FactExtractionEngine:
         return extracted_facts
 
     @classmethod
-    def _apply_pattern_rules(cls, sent_text: str) -> List[Dict[str, Any]]:
+    def _apply_pattern_rules(cls, sent_spacy, sent_text: str) -> List[Dict[str, Any]]:
         results = []
         for pat in cls.PATTERNS:
             match = re.search(pat["regex"], sent_text, re.IGNORECASE)
@@ -145,8 +145,7 @@ class FactExtractionEngine:
                 
                 subject = groups.get("subject", "").strip()
                 if not subject or len(subject) < 2 or "company" in subject.lower():
-                    doc = nlp(sent_text)
-                    orgs = [ent.text for ent in doc.ents if ent.label_ in ["ORG", "PRODUCT"]]
+                    orgs = [ent.text for ent in sent_spacy.ents if ent.label_ in ["ORG", "PRODUCT"]]
                     subject = orgs[0] if orgs else "Company / Entity"
 
                 pred = pat["predicate"]
@@ -160,6 +159,7 @@ class FactExtractionEngine:
                     "fact_type": pat["type"]
                 })
         return results
+
 
     @classmethod
     def _apply_nlp_extraction(cls, sent_spacy, sent_text: str) -> List[Dict[str, Any]]:
