@@ -17,6 +17,48 @@ The engine acts as a strict, grounded data parser that extracts discrete facts f
 
 ---
 
+## System Architecture & Workflow Diagram
+
+Compiled and verified with **[Archify](https://github.com/tt-a1i/archify)** using the **Signal Flow** layout.
+
+![Fact Knowledge Layer Workflow](workflow.svg)
+
+* **Interactive Signal-Flow Player**: [`workflow.html`](workflow.html) *(with step-by-step chapter animation, node tracing, and dark/light themes)*
+* **Component Architecture Map**: [`architecture.html`](architecture.html)
+* **Typed IR Specifications**: [`workflow.json`](workflow.json) and [`architecture.json`](architecture.json)
+
+```mermaid
+flowchart LR
+    subgraph L1["01 / User & Document Intake"]
+        User["👤 User / Reviewer"] --> UI["🖥️ Streamlit UI"]
+        Demo["⚡ sample_data.py"]
+    end
+
+    subgraph L2["02 / Stage 1: Extraction Engine"]
+        Parser["📄 PDF Parser (pypdf)"] --> LLM1["🧠 Gemini Extractor (temp=0.0)"]
+        LLM1 --> Schema["🛡️ Pydantic SchemaGate"]
+    end
+
+    subgraph L3["03 / Stage 2: Cross-Document Reasoning"]
+        Reasoner["🔬 Stage 2 Engine"] --> LLM2["🧠 Gemini Cross-Examiner"]
+    end
+
+    subgraph L4["04 / Knowledge Layer & Review Tabs"]
+        FactStore[("🗄️ Fact Registry F-001..NNN")]
+        Classifier["⚖️ Evidence Classifier (4 Cases)"]
+        Tabs["📊 4 Review Tabs & JSON Export"]
+    end
+
+    UI --> Parser
+    Schema --> FactStore
+    FactStore --> Reasoner
+    LLM2 --> Classifier
+    Classifier --> Tabs
+    Demo -.-> Tabs
+```
+
+---
+
 ## Setup and Run Instructions
 
 ### Prerequisites
@@ -45,7 +87,7 @@ source .venv/bin/activate
 pip install -r requirements.txt
 ```
 
-### 4. Configure Environment (Optional)
+### 4. Configure API Key (Optional)
 You can set your Gemini API key as an environment variable or enter it directly in the UI sidebar:
 ```bash
 # Windows (PowerShell)
@@ -59,16 +101,16 @@ export GEMINI_API_KEY="your_actual_api_key_here"
 ```bash
 streamlit run app.py
 ```
-The browser will automatically launch at `http://localhost:8501`.
+The application opens automatically at `http://localhost:8501`.
 
-> **Zero Setup Evaluator Walkthrough**: If evaluating without a Gemini API key, launch the application and click **"⚡ Load Demo Evaluation Dataset"** to immediately inspect precomputed extractions and grounded reasoning across all four required cases.
+> **Zero Setup Evaluator Walkthrough**: If reviewing without an API key, click **"⚡ Load Demo Evaluation Dataset"** on the home screen to immediately inspect precomputed extractions, verbatim quotes, and grounded reasoning across all four challenge cases.
 
 ---
 
 ## Video Demo
 
 * **Demo Video Link**: `https://youtu.be/your-demo-video-id` *(Replace with your 3-minute video recording)*
-* **Overview of Demo**:
+* **Overview of Demo Walkthrough**:
   1. **Document Ingestion**: Uploading multi-page PDF disclosures in the sidebar.
   2. **Two-Stage Analysis**: Live spinner showing Stage 1 (strict factual extraction) and Stage 2 (cross-document reasoning).
   3. **The 4 Challenge Cases**: Side-by-side walkthrough of Corroborations, Contradictions, Contextual Reconciliations, and Audit Failures.
@@ -78,7 +120,7 @@ The browser will automatically launch at `http://localhost:8501`.
 
 ## Demonstration of the Four Required Cases
 
-The system specifically detects and isolates the four review cases with grounded evidence:
+The system detects and categorizes the four review cases with grounded evidence:
 
 ### Case 1: Corroborated Evidence
 * **Claim**: Cloud Infrastructure segment revenue reached $4.2B with 32% year-over-year expansion in Q4 2023.
@@ -92,7 +134,7 @@ The system specifically detects and isolates the four review cases with grounded
 * **Source Evidence**:
   * `Global_Workforce_Report_2023.pdf`: *"Total global permanent headcount as of December 31, 2023 stood at 14,200 full-time employees."*
   * `Annual_ESG_Disclosure_2023.pdf`: *"The company closed fiscal year 2023 with 15,800 active permanent employees worldwide."*
-* **System Reasoning**: Direct numerical conflict between two official disclosures for the exact same reporting date. One certifies 14,200 full-time employees while the other reports 15,800 active permanent employees (a 1,600 employee discrepancy). Neither text references contractor adjustments or restructuring to justify the variance.
+* **System Reasoning**: Direct numerical conflict between two official disclosures for the exact same reporting cutoff date. One certifies 14,200 full-time employees while the other reports 15,800 active permanent employees (a 1,600 employee discrepancy). Neither text references contractor adjustments or restructuring to justify the variance.
 
 ### Case 3: Contextual Reconciliation
 * **Claim**: Apparent contradiction between reported Operating Margins (21.4% vs. 28.6%).
@@ -112,12 +154,7 @@ The system specifically detects and isolates the four review cases with grounded
 
 ## Approach
 
-### 1. Architecture: Two-Stage Analytical Pipeline
-The system architecture has been compiled and validated with **[Archify](https://github.com/tt-a1i/archify)** into a verifiable, self-contained interactive architecture diagram ([architecture.html](file:///e:/superjoindatalysis/SUPERJOINDATALYSIS/architecture.html)), which is also embedded directly within the Streamlit application.
-
-* **Architecture JSON IR**: [`architecture.json`](file:///e:/superjoindatalysis/SUPERJOINDATALYSIS/architecture.json)
-* **Compiled Interactive Map**: [`architecture.html`](file:///e:/superjoindatalysis/SUPERJOINDATALYSIS/architecture.html) (interactive node reach tracing, dark/light themes, and dataflow boundaries)
-
+### 1. Two-Stage Analytical Pipeline
 Rather than asking a model to perform extraction and cross-referencing in a single monolithic prompt, we separate the pipeline into two focused stages:
 1. **Stage 1 (Strict Extraction)**:
    - In-memory PDF text extraction using `pypdf` with page tracking.
@@ -139,6 +176,7 @@ Rather than asking a model to perform extraction and cross-referencing in a sing
 * **Validation & Schemas**: `pydantic` v2.
 * **PDF Extraction**: `pypdf`.
 * **Frontend**: `streamlit`.
+* **Architecture Modeling**: `Archify` (Signal Flow layout).
 
 ---
 
@@ -152,7 +190,7 @@ Rather than asking a model to perform extraction and cross-referencing in a sing
 ### Next Steps & Future Work
 * **OCR Integration**: Integrate Google Document AI or Tesseract OCR for scanned PDF support.
 * **Entity Knowledge Graph**: Build an interactive graph visualization (using PyVis / NetworkX) showing fact nodes, document edges, and relationship links.
-* **Dynamic Domain Schema Evolution**: Allow the knowledge layer to auto-cluster emerging domain ontologies (e.g., ESG metrics, clinical trial parameters, regulatory compliance rules) as new document types are ingested.
+* **Dynamic Domain Schema Evolution**: Allow the knowledge layer to auto-cluster emerging domain ontologies as new document types are ingested.
 * **Vector-Grounded Hybrid Retrieval**: For multi-thousand-page corporate filings, implement chunk-level vector indexing to retrieve relevant candidate facts before LLM cross-referencing.
 
 ---

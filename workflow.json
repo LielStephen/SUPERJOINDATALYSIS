@@ -1,0 +1,105 @@
+{
+  "schema_version": 2,
+  "diagram_type": "workflow",
+  "meta": {
+    "title": "Fact Knowledge Layer Workflow",
+    "animation": "trace",
+    "visual_preset": "signal-flow",
+    "quality_profile": "showcase",
+    "views": [
+      {
+        "id": "full-pipeline",
+        "label": "End-to-end flow",
+        "focus": ["user", "ui_drop", "parser", "stage1_llm", "schema_gate", "fact_store", "reasoner", "stage2_llm", "classifier", "tabs"],
+        "note": "Trace complete evidence extraction and cross-referencing from PDF upload to classified review."
+      },
+      {
+        "id": "extraction-loop",
+        "label": "Stage 1 extraction",
+        "focus": ["ui_drop", "parser", "stage1_llm", "schema_gate", "fact_store"],
+        "note": "In-memory text extraction validated against Pydantic schema with verbatim quote enforcement."
+      },
+      {
+        "id": "reasoning-loop",
+        "label": "Stage 2 cross-referencing",
+        "focus": ["fact_store", "reasoner", "stage2_llm", "classifier", "tabs"],
+        "note": "Pairwise cross-document comparison isolating corroboration, contradiction, reconciliation, and audit failures."
+      }
+    ],
+    "output": "workflow.html"
+  },
+  "lanes": [
+    { "id": "intake", "label": "01 / User & Document Intake" },
+    { "id": "extraction", "label": "02 / Stage 1: Extraction Engine" },
+    { "id": "reasoning", "label": "03 / Stage 2: Cross-Document Reasoning" },
+    { "id": "knowledge", "label": "04 / Knowledge Layer & Review Tabs" }
+  ],
+  "phases": [
+    { "id": "phase_intake", "label": "Intake & Parse", "fromCol": 0, "toCol": 1 },
+    { "id": "phase_extract", "label": "Extract & Validate", "fromCol": 2, "toCol": 3, "variant": "emphasis" },
+    { "id": "phase_reason", "label": "Cross-Examine & Review", "fromCol": 4, "toCol": 5, "variant": "dashed" }
+  ],
+  "groups": [
+    { "id": "grp_intake", "label": "PDF ingestion", "lane": "intake", "fromCol": 0, "toCol": 1 },
+    { "id": "grp_stage1", "label": "Strict factual parsing", "lane": "extraction", "fromCol": 2, "toCol": 3, "variant": "emphasis" },
+    { "id": "grp_stage2", "label": "Pairwise reasoning loop", "lane": "reasoning", "fromCol": 4, "toCol": 5, "variant": "emphasis" },
+    { "id": "grp_storage", "label": "Knowledge store & UI", "lane": "knowledge", "fromCol": 3, "toCol": 5, "variant": "dashed" }
+  ],
+  "mainPath": ["user", "ui_drop", "parser", "stage1_llm", "schema_gate", "fact_store", "reasoner", "stage2_llm", "tabs"],
+  "nodes": [
+    { "id": "user", "lane": "intake", "col": 0, "type": "external", "label": "User", "sublabel": "uploads PDFs", "width": 132 },
+    { "id": "ui_drop", "lane": "intake", "col": 1, "type": "frontend", "label": "Streamlit UI", "sublabel": "file uploader", "width": 132 },
+    { "id": "demo_eval", "lane": "intake", "col": 5, "type": "external", "label": "Demo Dataset", "sublabel": "sample_data.py", "tag": "zero setup", "width": 132 },
+    { "id": "parser", "lane": "extraction", "col": 1, "type": "backend", "label": "PDF Parser", "sublabel": "pypdf in-memory", "tag": "page-tracked", "width": 132 },
+    { "id": "stage1_llm", "lane": "extraction", "col": 2, "type": "cloud", "label": "Gemini Extractor", "sublabel": "strict prompt", "tag": "temp = 0.0", "width": 132 },
+    { "id": "schema_gate", "lane": "extraction", "col": 3, "type": "security", "label": "Pydantic Schema", "sublabel": "ExtractionResult", "tag": "verbatim quote", "width": 132 },
+    { "id": "fact_store", "lane": "knowledge", "col": 3, "type": "database", "label": "Fact Registry", "sublabel": "atomic store", "tag": "F-001..F-NNN", "width": 132 },
+    { "id": "reasoner", "lane": "reasoning", "col": 4, "type": "backend", "label": "Stage 2 Engine", "sublabel": "cross-examiner", "tag": "pairwise", "width": 132 },
+    { "id": "stage2_llm", "lane": "reasoning", "col": 5, "type": "cloud", "label": "Gemini Reasoner", "sublabel": "cross-ref prompt", "tag": "grounded context", "width": 132 },
+    { "id": "classifier", "lane": "knowledge", "col": 4, "type": "security", "label": "Evidence Classifier", "sublabel": "4 Case Taxonomy", "tag": "strict evidence", "width": 132 },
+    { "id": "tabs", "lane": "knowledge", "col": 5, "type": "frontend", "label": "Review Tabs", "sublabel": "4 distinct views", "tag": "export JSON", "width": 132 }
+  ],
+  "edges": [
+    { "id": "e_upload", "from": "user", "to": "ui_drop", "variant": "default" },
+    { "id": "e_parse", "from": "ui_drop", "to": "parser", "label": "extract", "variant": "emphasis" },
+    { "id": "e_prompt1", "from": "parser", "to": "stage1_llm", "variant": "default" },
+    { "id": "e_validate", "from": "stage1_llm", "to": "schema_gate", "label": "validate", "variant": "emphasis" },
+    { "id": "e_store", "from": "schema_gate", "to": "fact_store", "label": "commit facts", "variant": "emphasis" },
+    { "id": "e_feed", "from": "fact_store", "to": "reasoner", "label": "fact corpus", "variant": "emphasis" },
+    { "id": "e_reason_llm", "from": "reasoner", "to": "stage2_llm", "variant": "default" },
+    { "id": "e_classify", "from": "reasoner", "to": "classifier", "label": "classify", "variant": "security" },
+    { "id": "e_render", "from": "classifier", "to": "tabs", "label": "grounded cases", "variant": "emphasis" },
+    { "id": "e_final_tabs", "from": "stage2_llm", "to": "tabs", "variant": "emphasis" },
+    { "id": "e_demo", "from": "demo_eval", "to": "tabs", "label": "precomputed cases", "variant": "dashed", "fromSide": "bottom", "toSide": "top" }
+  ],
+  "cards": [
+    {
+      "dot": "cyan",
+      "title": "Stage 1: Strict Extraction",
+      "items": [
+        "In-memory PDF text extraction tracking page boundaries",
+        "Deterministic Gemini extraction with temperature 0.0",
+        "Pydantic ExtractionResult schema guarantees verbatim quotes"
+      ]
+    },
+    {
+      "dot": "emerald",
+      "title": "Stage 2: Cross-Document Reasoning",
+      "items": [
+        "Pairwise cross-document entity and metric analysis",
+        "Detects accounting, timeframe, and scope differences",
+        "Strict 4-category classification with diagnostic fixes"
+      ]
+    },
+    {
+      "dot": "rose",
+      "title": "4 Review Categories",
+      "items": [
+        "Corroboration: Side-by-side confirmed quotes",
+        "Contradiction: Direct conflicts isolated",
+        "Reconciliation: Context-resolved variances",
+        "Audit Failure: Ambiguity flags + fixes"
+      ]
+    }
+  ]
+}

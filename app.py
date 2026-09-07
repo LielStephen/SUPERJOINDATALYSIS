@@ -486,11 +486,18 @@ if not st.session_state.analysis_complete:
             st.rerun()
 
     st.markdown("---")
-    with st.expander("🗺️ View Interactive System Architecture (Archify)", expanded=False):
-        arch_file = os.path.join(os.path.dirname(__file__), "architecture.html")
-        if os.path.exists(arch_file):
-            with open(arch_file, "r", encoding="utf-8") as f:
-                st.components.v1.html(f.read(), height=680, scrolling=True)
+    with st.expander("🗺️ Interactive System Architecture & Workflow (Archify Signal Flow)", expanded=False):
+        diag_tab1, diag_tab2 = st.tabs(["⚡ Signal Flow Workflow", "🏛️ Component Architecture"])
+        with diag_tab1:
+            wf_file = os.path.join(os.path.dirname(__file__), "workflow.html")
+            if os.path.exists(wf_file):
+                with open(wf_file, "r", encoding="utf-8") as f:
+                    st.components.v1.html(f.read(), height=720, scrolling=True)
+        with diag_tab2:
+            arch_file = os.path.join(os.path.dirname(__file__), "architecture.html")
+            if os.path.exists(arch_file):
+                with open(arch_file, "r", encoding="utf-8") as f:
+                    st.components.v1.html(f.read(), height=720, scrolling=True)
 
     st.stop()
 
@@ -590,12 +597,19 @@ with tab_audit:
                 render_fact_card(fact, 0)
 
 st.markdown("---")
-with st.expander("🗺️ Interactive System Architecture Map (Archify)", expanded=False):
-    st.caption("Interactive system architecture compiled with Archify — showing components, dataflow, and boundaries.")
-    arch_file = os.path.join(os.path.dirname(__file__), "architecture.html")
-    if os.path.exists(arch_file):
-        with open(arch_file, "r", encoding="utf-8") as f:
-            st.components.v1.html(f.read(), height=680, scrolling=True)
+with st.expander("🗺️ Interactive System Architecture & Workflow (Archify Signal Flow)", expanded=False):
+    st.caption("Interactive system maps compiled with Archify — showcasing verified dataflow, lanes, and component hierarchy.")
+    diag_tab1, diag_tab2 = st.tabs(["⚡ Signal Flow Workflow", "🏛️ Component Architecture"])
+    with diag_tab1:
+        wf_file = os.path.join(os.path.dirname(__file__), "workflow.html")
+        if os.path.exists(wf_file):
+            with open(wf_file, "r", encoding="utf-8") as f:
+                st.components.v1.html(f.read(), height=720, scrolling=True)
+    with diag_tab2:
+        arch_file = os.path.join(os.path.dirname(__file__), "architecture.html")
+        if os.path.exists(arch_file):
+            with open(arch_file, "r", encoding="utf-8") as f:
+                st.components.v1.html(f.read(), height=720, scrolling=True)
 
 with st.expander("📊 Full Fact Registry", expanded=False):
     for i, fact in enumerate(facts):
