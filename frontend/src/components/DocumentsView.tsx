@@ -1,6 +1,6 @@
 import React, { useRef, useState } from 'react';
 import { DocumentItem } from '../types';
-import { Upload, FolderUp, FileText, CheckCircle, Clock, AlertCircle, RefreshCw, Files } from 'lucide-react';
+import { Upload, FolderUp, FileText, CheckCircle, Clock, AlertCircle, RefreshCw, Files, Plus, X, Trash2, Play } from 'lucide-react';
 
 interface DocumentsViewProps {
   documents: DocumentItem[];
@@ -19,29 +19,46 @@ export const DocumentsView: React.FC<DocumentsViewProps> = ({
 }) => {
   const fileInputRef = useRef<HTMLInputElement>(null);
   const folderInputRef = useRef<HTMLInputElement>(null);
+  const [stagedFiles, setStagedFiles] = useState<File[]>([]);
   const [isDragOver, setIsDragOver] = useState<boolean>(false);
+
+  const addFilesToStage = (newFiles: File[]) => {
+    const pdfs = newFiles.filter(f => f.name.toLowerCase().endsWith('.pdf'));
+    if (pdfs.length === 0) {
+      alert('Please select or drop valid PDF (.pdf) files.');
+      return;
+    }
+    setStagedFiles(prev => {
+      const existingKeys = new Set(prev.map(f => `${f.name}_${f.size}`));
+      const uniqueNew = pdfs.filter(f => !existingKeys.has(`${f.name}_${f.size}`));
+      return [...prev, ...uniqueNew];
+    });
+  };
+
+  const removeStagedFile = (index: number) => {
+    setStagedFiles(prev => prev.filter((_, i) => i !== index));
+  };
+
+  const clearStagedFiles = () => {
+    setStagedFiles([]);
+  };
+
+  const handleStartBatchUpload = () => {
+    if (stagedFiles.length === 0) return;
+    onUpload(stagedFiles);
+    setStagedFiles([]);
+  };
 
   const handleFileChange = (e: React.ChangeEvent<HTMLInputElement>) => {
     if (e.target.files && e.target.files.length > 0) {
-      const filesArray = Array.from(e.target.files).filter(f => f.name.toLowerCase().endsWith('.pdf'));
-      if (filesArray.length > 0) {
-        onUpload(filesArray);
-      } else {
-        alert('Please select valid PDF (.pdf) files.');
-      }
+      addFilesToStage(Array.from(e.target.files));
       e.target.value = '';
     }
   };
 
   const handleFolderChange = (e: React.ChangeEvent<HTMLInputElement>) => {
     if (e.target.files && e.target.files.length > 0) {
-      const allFiles = Array.from(e.target.files);
-      const pdfFiles = allFiles.filter(f => f.name.toLowerCase().endsWith('.pdf'));
-      if (pdfFiles.length === 0) {
-        alert('No PDF files found in the selected folder.');
-      } else {
-        onUpload(pdfFiles);
-      }
+      addFilesToStage(Array.from(e.target.files));
       e.target.value = '';
     }
   };
@@ -110,7 +127,7 @@ export const DocumentsView: React.FC<DocumentsViewProps> = ({
       const collected = await Promise.all(promises);
       const pdfFiles = collected.flat();
       if (pdfFiles.length > 0) {
-        onUpload(pdfFiles);
+        addFilesToStage(pdfFiles);
       } else {
         alert('No PDF files found in the dropped items.');
       }
@@ -120,9 +137,9 @@ export const DocumentsView: React.FC<DocumentsViewProps> = ({
     if (e.dataTransfer.files && e.dataTransfer.files.length > 0) {
       const pdfFiles = Array.from(e.dataTransfer.files).filter(f => f.name.toLowerCase().endsWith('.pdf'));
       if (pdfFiles.length > 0) {
-        onUpload(pdfFiles);
+        addFilesToStage(pdfFiles);
       } else {
-        alert('Please drop PDF (.pdf) files.');
+        alert('Please drop valid PDF (.pdf) files.');
       }
     }
   };
@@ -130,12 +147,13 @@ export const DocumentsView: React.FC<DocumentsViewProps> = ({
   return (
     <div style={{ display: 'flex', flexDirection: 'column', gap: '20px' }}>
       <div className="card">
-        <div className="card-header">
+        <div className="card-header" style={{ flexWrap: 'wrap', gap: '12px' }}>
           <div className="card-title">
             <FileText size={18} style={{ color: '#38bdf8' }} />
             <span>Document Ingestion & Management</span>
           </div>
-          <div style={{ display: 'flex', gap: '10px', alignItems: 'center' }}>
+
+          <div style={{ display: 'flex', gap: '10px', alignItems: 'center', flexWrap: 'wrap' }}>
             {/* Hidden file input for multiple individual PDFs */}
             <input
               type="file"
@@ -160,27 +178,137 @@ export const DocumentsView: React.FC<DocumentsViewProps> = ({
               className="btn-secondary"
               onClick={() => folderInputRef.current?.click()}
               disabled={isUploading}
-              title="Select an entire folder containing PDF files"
+              title="Select an entire folder of PDFs to add to queue"
             >
               <FolderUp size={16} />
-              <span>Upload Folder</span>
+              <span>+ Select Folder</span>
             </button>
 
             <button
-              className="btn-primary"
+              className="btn-secondary"
               onClick={() => fileInputRef.current?.click()}
               disabled={isUploading}
-              title="Select one or multiple PDF files"
+              title="Select one or multiple PDF files to add to queue"
             >
-              <Upload size={16} />
-              <span>{isUploading ? (uploadStatus || 'Processing...') : 'Upload PDF(s)'}</span>
+              <Plus size={16} />
+              <span>+ Select PDFs</span>
             </button>
+
+            {stagedFiles.length > 0 && (
+              <button
+                className="btn-primary"
+                onClick={handleStartBatchUpload}
+                disabled={isUploading}
+                style={{ background: '#0284c7' }}
+              >
+                <Play size={14} fill="currentColor" />
+                <span>Process Queue ({stagedFiles.length})</span>
+              </button>
+            )}
           </div>
         </div>
 
         <p style={{ color: '#94a3b8', fontSize: '13px', marginBottom: '16px' }}>
-          Upload arbitrary PDF documents into the Knowledge Layer. You can select multiple PDFs, choose an entire folder, or drag and drop below.
+          You can select multiple PDFs across different folders, drop folders, or queue them up before batch processing.
         </p>
+
+        {/* Staging Queue Area (Visible when user has chosen files across folders) */}
+        {stagedFiles.length > 0 && (
+          <div style={{
+            background: 'rgba(56, 189, 248, 0.05)',
+            border: '1px solid rgba(56, 189, 248, 0.3)',
+            borderRadius: '8px',
+            padding: '16px',
+            marginBottom: '20px',
+          }}>
+            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '12px', flexWrap: 'wrap', gap: '10px' }}>
+              <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
+                <Files size={18} style={{ color: '#38bdf8' }} />
+                <span style={{ fontWeight: '600', color: '#f8fafc', fontSize: '14px' }}>
+                  Staged Documents Queue ({stagedFiles.length} {stagedFiles.length === 1 ? 'file' : 'files'} ready across folders)
+                </span>
+              </div>
+              
+              <div style={{ display: 'flex', gap: '8px', alignItems: 'center' }}>
+                <button
+                  className="btn-secondary"
+                  onClick={() => fileInputRef.current?.click()}
+                  disabled={isUploading}
+                  style={{ padding: '6px 12px', fontSize: '12px' }}
+                >
+                  <Plus size={13} /> + Add More PDFs
+                </button>
+                <button
+                  className="btn-secondary"
+                  onClick={() => folderInputRef.current?.click()}
+                  disabled={isUploading}
+                  style={{ padding: '6px 12px', fontSize: '12px' }}
+                >
+                  <FolderUp size={13} /> + Add From Another Folder
+                </button>
+                <button
+                  className="btn-secondary"
+                  onClick={clearStagedFiles}
+                  disabled={isUploading}
+                  style={{ padding: '6px 12px', fontSize: '12px', color: '#f87171', borderColor: 'rgba(239, 68, 68, 0.3)' }}
+                  title="Clear staged queue"
+                >
+                  <Trash2 size={13} /> Clear
+                </button>
+                <button
+                  className="btn-primary"
+                  onClick={handleStartBatchUpload}
+                  disabled={isUploading}
+                  style={{ padding: '6px 16px', fontSize: '13px', fontWeight: '600', background: '#0284c7' }}
+                >
+                  <Play size={14} fill="currentColor" />
+                  <span>Start Processing All ({stagedFiles.length})</span>
+                </button>
+              </div>
+            </div>
+
+            {/* Chips list of staged PDFs */}
+            <div style={{ display: 'flex', flexWrap: 'wrap', gap: '8px', maxHeight: '180px', overflowY: 'auto', padding: '4px' }}>
+              {stagedFiles.map((f, idx) => (
+                <div
+                  key={`${f.name}-${idx}`}
+                  style={{
+                    display: 'flex',
+                    alignItems: 'center',
+                    gap: '8px',
+                    background: '#1e293b',
+                    border: '1px solid #334155',
+                    borderRadius: '6px',
+                    padding: '6px 10px',
+                    fontSize: '12px',
+                    color: '#e2e8f0'
+                  }}
+                >
+                  <span>📄 {f.name}</span>
+                  <span style={{ color: '#94a3b8', fontSize: '11px' }}>
+                    ({f.size > 1024 * 1024 ? `${(f.size / (1024 * 1024)).toFixed(1)} MB` : `${(f.size / 1024).toFixed(0)} KB`})
+                  </span>
+                  <button
+                    onClick={() => removeStagedFile(idx)}
+                    disabled={isUploading}
+                    style={{
+                      background: 'none',
+                      border: 'none',
+                      color: '#94a3b8',
+                      cursor: 'pointer',
+                      padding: '2px',
+                      display: 'flex',
+                      alignItems: 'center'
+                    }}
+                    title="Remove this file from queue"
+                  >
+                    <X size={14} />
+                  </button>
+                </div>
+              ))}
+            </div>
+          </div>
+        )}
 
         {/* Drag & Drop Zone */}
         <div
@@ -216,10 +344,10 @@ export const DocumentsView: React.FC<DocumentsViewProps> = ({
                   <FolderUp size={26} />
                 </div>
                 <span style={{ fontSize: '14px', fontWeight: '500', color: '#f1f5f9' }}>
-                  Drag & Drop PDF files or entire folders here
+                  Drag & Drop PDF files or folders here
                 </span>
                 <span style={{ fontSize: '12px', color: '#64748b' }}>
-                  or click to browse individual PDF files
+                  You can drop multiple files and folders at any time to stage them together
                 </span>
               </>
             )}
@@ -243,7 +371,7 @@ export const DocumentsView: React.FC<DocumentsViewProps> = ({
               {documents.length === 0 ? (
                 <tr>
                   <td colSpan={7} style={{ textAlign: 'center', padding: '24px', color: '#94a3b8' }}>
-                    No PDF documents uploaded yet. Click "Upload PDF(s)", "Upload Folder", or "⚡ Seed Demo Dataset".
+                    No PDF documents uploaded yet. Stage PDF documents above or click "⚡ Seed Demo Dataset".
                   </td>
                 </tr>
               ) : (
