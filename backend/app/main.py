@@ -26,20 +26,29 @@ app = FastAPI(
     version="2.0.0"
 )
 
+cors_origins_env = os.getenv("CORS_ORIGINS", "")
+allowed_origins = [orig.strip() for orig in cors_origins_env.split(",") if orig.strip()] if cors_origins_env else ["*"]
+
 app.add_middleware(
     CORSMiddleware,
-    allow_origins=["*"],
+    allow_origins=allowed_origins,
+    allow_origin_regex=r"^https://.*\.vercel\.app$|^http://localhost(:\d+)?$",
     allow_credentials=True,
     allow_methods=["*"],
     allow_headers=["*"],
 )
 
-UPLOAD_DIR = Path(__file__).resolve().parent.parent.parent / "uploads"
+UPLOAD_DIR = Path(os.getenv("UPLOAD_DIR", str(Path(__file__).resolve().parent.parent.parent / "uploads")))
 STATIC_DIR = Path(__file__).resolve().parent / "static"
 os.makedirs(UPLOAD_DIR, exist_ok=True)
 os.makedirs(STATIC_DIR, exist_ok=True)
 
 app.mount("/static", StaticFiles(directory=str(STATIC_DIR)), name="static")
+
+@app.get("/health")
+@app.get("/healthz")
+def health_check():
+    return {"status": "healthy", "service": "Fact Knowledge Layer API"}
 
 @app.get("/")
 def read_root():
