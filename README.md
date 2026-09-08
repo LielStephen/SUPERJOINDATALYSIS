@@ -15,6 +15,12 @@ A 100% self-contained, evidence-grounded document intelligence system built with
 
 ---
 
+## 🎥 Video Demo
+*Replace this with a link to your 3-minute demo video showing a PDF being processed and the 4 benchmark cases.*
+[Watch Demo Video Here] (link)
+
+---
+
 ## Project Objective
 
 The system processes multiple PDF corporate disclosures (e.g. 10-K filings, earnings releases, ESG disclosures, investor presentations, strategy memos) and extracts discrete, verifiable factual claims. It then determines how facts from different documents relate to each other without external LLM APIs.
@@ -29,7 +35,17 @@ The system deterministically classifies cross-document relationships into:
 
 ---
 
-## PDF Ingestion: Why We Do NOT Use OCR
+## Approach, Decisions & Trade-offs
+
+This project builds a local **Fact Knowledge Layer** without relying on third-party LLM APIs.
+
+### Core Approach
+1. **Extraction Strategy:** We use PyMuPDF for native vector parsing. This ensures pixel-exact bounding boxes and 100% accurate text streaming (unlike OCR).
+2. **Grounding:** Every fact extracted is bound to its `page_number`, `source_text`, and coordinates.
+3. **Reasoning Engine:** Facts are normalized (numbers, dates, currencies), clustered via a deterministic Entity Resolution engine, and matched. A rules-based logic engine handles numerical equivalence, contextual scope (e.g., GAAP vs Non-GAAP), and temporal divergence.
+4. **Local Execution:** AI models (spaCy NER) run 100% locally. 
+
+### Why We Do NOT Use OCR
 
 The system intentionally uses **direct native vector/text stream extraction** via **PyMuPDF (`pymupdf`)** rather than image-based optical character recognition (OCR like Tesseract, EasyOCR, or PaddleOCR).
 
@@ -206,6 +222,26 @@ python -m pytest backend/tests/test_pipeline.py -v
 
 ---
 
+## Limitations and Next Steps
+
+**What currently doesn't work perfectly:**
+* **Complex Coreference:** "The company" is resolved globally, but deeply nested coreferences ("the regional subsidiary's newly appointed director") may lack context resolution across long documents.
+* **Tabular Data:** Highly complex tables without borders can sometimes be extracted out of order by standard layout parsers.
+
+**What I would build next:**
+* **Large-Scale Knowledge Graph:** Integrate a graph database like Neo4j to query multi-hop facts (e.g., tracing a Director's tenure across 5 years of board disclosures).
+* **Incremental Updates:** Add a background worker to ingest new PDFs asynchronously via Kafka or Celery without locking the database or forcing full pipeline recalculation.
+* **Dynamic Schemas:** Allow the system to automatically register new fact predicates (e.g. "Scope 3 emissions") dynamically as it discovers them in ESG documents.
+
+---
+
+## Additional Notes
+* **Data Privacy:** This solution runs entirely locally on CPU, ensuring no proprietary corporate disclosures leak to OpenAI or Anthropic.
+* **Scalability:** Since facts are cached in SQLite, adding a new document only requires parsing the new document and evaluating relationships between the new facts and the existing database.
+
+---
+
 ## License
 
 MIT License.
+

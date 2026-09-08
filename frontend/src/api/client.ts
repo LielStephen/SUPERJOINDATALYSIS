@@ -1,6 +1,8 @@
 import { DocumentItem, Fact, Relationship } from '../types';
 
-const API_BASE = '/api';
+const API_BASE = import.meta.env.VITE_API_URL 
+  ? `${import.meta.env.VITE_API_URL.replace(/\/$/, '')}/api` 
+  : '/api';
 
 export const fetchDocuments = async (): Promise<DocumentItem[]> => {
   const res = await fetch(`${API_BASE}/documents`);
