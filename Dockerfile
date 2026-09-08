@@ -20,10 +20,10 @@ RUN python -m spacy download en_core_web_sm || true
 
 COPY . .
 
-EXPOSE 8501 7860 8000
+EXPOSE 8000 8501 10000
 
 HEALTHCHECK --interval=10s --timeout=5s --start-period=15s --retries=3 \
-    CMD curl --fail http://localhost:${PORT}/_stcore/health || curl --fail http://localhost:${PORT}/healthz || exit 1
+    CMD curl --fail http://localhost:${PORT}/health || curl --fail http://localhost:${PORT}/healthz || exit 1
 
-CMD ["sh", "-c", "streamlit run app.py --server.port=${PORT:-8501} --server.address=0.0.0.0 --server.headless=true"]
+CMD ["sh", "-c", "if [ \"$RUN_STREAMLIT\" = \"true\" ]; then streamlit run app.py --server.port=${PORT:-8501} --server.address=0.0.0.0 --server.headless=true; else uvicorn backend.app.main:app --host 0.0.0.0 --port ${PORT:-8000}; fi"]
 
