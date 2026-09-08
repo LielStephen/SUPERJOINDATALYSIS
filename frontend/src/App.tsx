@@ -16,6 +16,7 @@ export const App: React.FC = () => {
   
   const [isLoading, setIsLoading] = useState<boolean>(false);
   const [isUploading, setIsUploading] = useState<boolean>(false);
+  const [uploadStatus, setUploadStatus] = useState<string>('');
   const [isSeeding, setIsSeeding] = useState<boolean>(false);
 
   const [selectedFact, setSelectedFact] = useState<Fact | null>(null);
@@ -54,16 +55,21 @@ export const App: React.FC = () => {
     }
   };
 
-  const handleUploadDocument = async (file: File) => {
+  const handleUploadDocuments = async (files: File[]) => {
+    if (!files || files.length === 0) return;
     setIsUploading(true);
     try {
-      const newDoc = await uploadDocument(file);
-      await processDocument(newDoc.id);
+      for (let i = 0; i < files.length; i++) {
+        setUploadStatus(`Processing (${i + 1}/${files.length}): ${files[i].name}...`);
+        const newDoc = await uploadDocument(files[i]);
+        await processDocument(newDoc.id);
+      }
       await loadAllData();
     } catch (err) {
       alert('PDF Upload or Processing failed.');
     } finally {
       setIsUploading(false);
+      setUploadStatus('');
     }
   };
 
@@ -96,9 +102,10 @@ export const App: React.FC = () => {
         {activeTab === 'documents' && (
           <DocumentsView
             documents={documents}
-            onUpload={handleUploadDocument}
+            onUpload={handleUploadDocuments}
             onProcess={handleProcessDocument}
             isUploading={isUploading}
+            uploadStatus={uploadStatus}
           />
         )}
 

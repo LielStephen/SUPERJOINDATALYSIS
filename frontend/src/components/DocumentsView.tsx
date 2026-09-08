@@ -4,17 +4,26 @@ import { Upload, FileText, CheckCircle, Clock, AlertCircle, RefreshCw } from 'lu
 
 interface DocumentsViewProps {
   documents: DocumentItem[];
-  onUpload: (file: File) => void;
+  onUpload: (files: File[]) => void;
   onProcess: (docId: string) => void;
   isUploading: boolean;
+  uploadStatus?: string;
 }
 
-export const DocumentsView: React.FC<DocumentsViewProps> = ({ documents, onUpload, onProcess, isUploading }) => {
+export const DocumentsView: React.FC<DocumentsViewProps> = ({ 
+  documents, 
+  onUpload, 
+  onProcess, 
+  isUploading,
+  uploadStatus 
+}) => {
   const fileInputRef = useRef<HTMLInputElement>(null);
 
   const handleFileChange = (e: React.ChangeEvent<HTMLInputElement>) => {
-    if (e.target.files && e.target.files[0]) {
-      onUpload(e.target.files[0]);
+    if (e.target.files && e.target.files.length > 0) {
+      const filesArray = Array.from(e.target.files);
+      onUpload(filesArray);
+      e.target.value = '';
     }
   };
 
@@ -32,6 +41,7 @@ export const DocumentsView: React.FC<DocumentsViewProps> = ({ documents, onUploa
               ref={fileInputRef}
               onChange={handleFileChange}
               accept=".pdf"
+              multiple
               style={{ display: 'none' }}
             />
             <button
@@ -40,7 +50,7 @@ export const DocumentsView: React.FC<DocumentsViewProps> = ({ documents, onUploa
               disabled={isUploading}
             >
               <Upload size={16} />
-              <span>{isUploading ? 'Uploading PDF...' : 'Upload PDF Document'}</span>
+              <span>{isUploading ? (uploadStatus || 'Uploading PDFs...') : 'Upload PDF Document(s)'}</span>
             </button>
           </div>
         </div>
